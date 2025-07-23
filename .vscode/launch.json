@@ -6,7 +6,7 @@
   "configurations": [
     {
       "name": "TestTrain",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/train_test.py",
       "console": "integratedTerminal",

@@ -32,3 +32,12 @@ class Config:
     # Dimension of flash action direction
     # 闪现动作方向的维度
     DIM_OF_TALENT = 8
+
+
+    use_orthogonal = True
+    
+    use_ReLU = True
+    
+    kernel_size = 3
+    
+    stride = 1

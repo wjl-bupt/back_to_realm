@@ -28,6 +28,8 @@ from agent_diy.feature.definition import ActData, ObsData
 class Agent(BaseAgent):
     def __init__(self, agent_type="player", device=None, logger=None, monitor=None):
         super().__init__(agent_type, device, logger, monitor)
+        
+        self.mode = Model()
 
     @predict_wrapper
     def predict(self, list_obs_data):

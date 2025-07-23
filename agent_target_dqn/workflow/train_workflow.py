@@ -118,7 +118,7 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
                         _extra_info.result_message is {_extra_info['result_message']}"
                     )
                     break
-
+                logger.info(f"step_no is {step_no}")
                 step += 1
 
                 # Feature processing
