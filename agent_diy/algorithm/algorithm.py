@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import os
 import time
-from agent_ppo.model.model import NetworkModelLearner
+from agent_diy.model.model import NetworkModelLearner
 from agent_diy.conf.conf import Config
 
 
@@ -106,4 +106,6 @@ class Algorithm:
         total_loss = value_loss * self.vf_coef + policy_loss - self.var_beta * entropy_loss
         info_list = [tdret.mean(), value_loss, policy_loss, entropy_loss] + clip_fracs
         info_list += [adv.mean(), adv.std(), reward.mean()]
+        # NOTE(junweiluo): 增加记录指标
+        info_list += [ratio.mean()]
         return total_loss, info_list

@@ -18,18 +18,20 @@ from typing import List
 
 
 
-class Model(nn.Module):
-    def __init__(self, state_shape, action_shape=0, softmax=False):
-        super().__init__()
+# class Model(nn.Module):
+#     def __init__(self, state_shape, action_shape=0, softmax=False):
+#         super().__init__()
 
-        # User-defined network
-        # 用户自定义网络
+#         # User-defined network
+#         # 用户自定义网络
 
 class CNNLayer(nn.Module):
-    def __init__(self, obs_shape, hidden_size, kernel_size = 3, stride = 1):
+    def __init__(self):
         super(CNNLayer, self).__init__()
 
         # 配置参数
+        obs_shape = Config.obs_shape
+        hidden_size = Config.hidden_size
         use_ReLU = 1 if Config.use_ReLU else 0
         use_orthogonal = 1 if Config.use_orthogonal else 0
         kernel_size = Config.kernel_size
@@ -64,7 +66,7 @@ class CNNLayer(nn.Module):
         x = self.cnn(x)
         return x
 
-class MLP(nn.Module):
+class MLPLayer(nn.Module):
     def __init__(
         self,
         fc_feat_dim_list: List[int],
@@ -89,11 +91,11 @@ class MLP(nn.Module):
 
 
 class CNNBase(nn.Module):
-    def __init__(self, obs_shape, hidden_size):
+    def __init__(self):
         super(CNNBase, self).__init__()
-        self.cnn = CNNLayer(obs_shape, self.hidden_size, self._use_orthogonal, self._use_ReLU)
-        self.label_mlp = MLP([hidden_size, self.label_size], "label_mlp")
-        self.value_mlp = MLP([hidden_size, self.value_num], "value_mlp")
+        self.cnn = CNNLayer()
+        self.label_mlp = MLPLayer([Config.hidden_size, Config.ACTION_NUM], "label_mlp")
+        self.value_mlp = MLPLayer([Config.hidden_size, Config.VALUE_NUM], "value_mlp")
 
     def process_legal_action(self, label, legal_action):
         label_max, _ = torch.max(label * legal_action, 1, True)
@@ -113,6 +115,22 @@ class CNNBase(nn.Module):
 
         return prob, value
 
+class NetworkModelActor(CNNBase):
+    def format_data(self, obs, legal_action):
+        return (
+            torch.tensor(obs).to(torch.float32),
+            torch.tensor(legal_action).to(torch.float32),
+        )
+
+
+class NetworkModelLearner(CNNBase):
+    def format_data(self, datas):
+        return datas.view(-1, Config.data_len).float().split(Config.DATA_SPLIT_SHAPE, dim=1)
+
+    def forward(self, data_list, inference=False):
+        feature = data_list[0].reshape((-1,) + Config.obs_shape)
+        legal_action = data_list[-1]
+        return super().forward(feature, legal_action)
 
 
 class Flatten(nn.Module):

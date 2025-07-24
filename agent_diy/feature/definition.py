@@ -7,7 +7,7 @@
 Author: Tencent AI Arena Authors
 """
 
-from agent_ppo.conf.conf import Config
+from agent_diy.conf.conf import Config
 from kaiwu_agent.utils.common_func import create_cls, attached
 import numpy as np
 
@@ -146,7 +146,9 @@ class SampleManager:
         return ret
 
     def _get_game_data(self):
+        # NOTE(此处feature不再transpose)
         feature = np.array(self.feature).transpose()
+        
         probs = np.array(self.probs).transpose()
         actions = np.array(self.actions).transpose()
         reward = np.array(self.reward[:-1]).transpose()
@@ -155,7 +157,7 @@ class SampleManager:
         adv = np.array(self.adv).transpose()
         tdlamret = np.array(self.tdlamret).transpose()
 
-        data = np.concatenate([feature, reward, value, tdlamret, adv, actions, probs, legal_action]).transpose()
+        data = np.concatenate([feature.reshape(-1,100), reward, value, tdlamret, adv, actions, probs, legal_action]).transpose()
 
         samples = []
         for i in range(0, self.count):

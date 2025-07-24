@@ -134,4 +134,4 @@ tensorflow_log_level = "INFO"
 actor_addrs = { train_one = ["127.0.0.1:8888"]}
 learner_addrs = {train_one = ["127.0.0.1:9999"]}
 eval_model_dir = "/data/projects/back_to_the_realm_v2/ckpt"
-eval_model_id = "9366"
+eval_model_id = "4"

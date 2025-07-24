@@ -21,7 +21,7 @@ from kaiwu_agent.agent.base_agent import (
 import random
 import numpy as np
 from kaiwu_agent.utils.common_func import attached
-from agent_ppo.model.model import NetworkModelActor
+from agent_diy.model.model import NetworkModelActor
 from agent_diy.algorithm.algorithm import Algorithm
 from agent_diy.feature.definition import SampleData, ObsData, ActData, SampleManager
 from agent_diy.feature.preprocessor import Preprocessor

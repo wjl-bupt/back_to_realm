@@ -22,5 +22,18 @@
       "subProcess": true,
       "justMyCode": true,
     },
+    {
+      "name": "Learner Debugger",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "kaiwudrl/server/learner/learner.py",
+      "console": "integratedTerminal",
+      "subProcess": true,
+      "justMyCode": true,
+      "args": [
+        "--conf", "/data/projects/back_to_the_realm_v2/conf/kaiwudrl/learner.toml",
+      ]
+    },
+    
   ]
 }

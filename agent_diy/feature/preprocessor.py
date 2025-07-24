@@ -114,7 +114,7 @@ class Preprocessor:
 
         # Feature
         # 特征
-        feature = np.concatenate([self.cur_pos_norm, self.feature_end_pos, self.feature_history_pos, legal_action])
+        # feature = np.concatenate([self.cur_pos_norm, self.feature_end_pos, self.feature_history_pos, legal_action])
         
         obs, _ = frame_state
         feature = self.MyFeatureClass.build_feat(obs = obs)
@@ -183,12 +183,12 @@ class Build_Feature:
         
         def check(type_, organ, config_id):
             if config_id not in self.map_dict[type_]:
-                self.map_dict[type_] = { "status": organ["status"], "pos" : organ["pos"], "relative_pos" : organ["relative_pos"], }
+                self.map_dict[type_][config_id] = { "status": organ["status"], "pos" : organ["pos"], "relative_pos" : organ["relative_pos"], }
             else:
-                self.map_dict[type_]["status"] = organ["status"]
-                if self.map_dict[type_]["pos"]["x"] == -1:
-                    self.map_dict[type_]["pos"] = organ["pos"]
-                self.map_dict[type_]["relative_pos"] = organ["relative_pos"]
+                self.map_dict[type_][config_id]["status"] = organ["status"]
+                if self.map_dict[type_][config_id]["pos"]["x"] == -1:
+                    self.map_dict[type_][config_id]["pos"] = organ["pos"]
+                self.map_dict[type_][config_id]["relative_pos"] = organ["relative_pos"]
         
         for organ in self.organs:
             config_id = organ["config_id"]
@@ -256,7 +256,7 @@ class Build_Feature:
         """ 生成可通行区域的特征图 """
         pass_feat = np.zeros(shape = self.view.shape)
         cen_x, cen_y = (pass_feat.shape[0] - 1) // 2, (pass_feat.shape[1] - 1) // 2
-        pass_feat = (1.0 - self.local_visit / (np.max(self.local_visit) + 1e-6)) * (self.view == 1).float()
+        pass_feat = (1.0 - self.local_visit / (np.max(self.local_visit) + 1e-6)) * (self.view == 1)
         pass_feat[cen_x][cen_y] = 0.0
         
         return pass_feat
@@ -265,17 +265,18 @@ class Build_Feature:
         """ 生成宝箱的特征图 """
         treasure_feat = np.zeros(shape = self.view.shape)
         cen_x, cen_y = (treasure_feat.shape[0] - 1) // 2, (treasure_feat.shape[1] - 1) // 2
-        treasure_feat = (self.view == 4).float()
+        treasure_feat = (self.view == 4).astype(float)
         
-        # 预测宝箱位置
-        for treasure in self.treasures:
-            status = treasure["status"]
-            if status == 1 or status == 0:
-                continue
-            # 预测宝箱方位
-            direction_angle = DirectionAngles[RelativeDirection[treasure["relative_pos"]["direction"]]]
-            dx, dy = int(5 * np.cos(direction_angle)), int(5 * np.sin(direction_angle))
-            treasure_feat[cen_x + dx][cen_y + dy] = 1.0
+        if np.sum(treasure_feat) == 0:
+            # 预测宝箱位置
+            for treasure in self.treasures:
+                status = treasure["status"]
+                if status == 1 or status == 0:
+                    continue
+                # 预测宝箱方位
+                direction_angle = DirectionAngles[RelativeDirection[treasure["relative_pos"]["direction"]]]
+                dx, dy = int(5 * np.cos(direction_angle)), int(5 * np.sin(direction_angle))
+                treasure_feat[cen_x + dx][cen_y + dy] = 1.0
         
         # 没有探测到宝箱，并且也没有返回相对方位
         if np.sum(treasure_feat) == 0:
@@ -287,7 +288,9 @@ class Build_Feature:
         """ 生成终点的特征图 """
         dest_feat = np.zeros(shape = self.view.shape)
         cen_x, cen_y = (dest_feat.shape[0] - 1) // 2, (dest_feat.shape[1] - 1) // 2
-        for dest in self.destinations:
+        dest_feat = (self.view == 3).astype(float)
+        
+        for config_id, dest in self.destinations.items():
             direction_angle = DirectionAngles[RelativeDirection[dest["relative_pos"]["direction"]]]
             dx, dy = int(5 * np.cos(direction_angle)), int(5 * np.sin(direction_angle))
             dest_feat[cen_x + dx][cen_y + dy] = 1.0
@@ -297,7 +300,7 @@ class Build_Feature:
             
         return dest_feat
 
-    def global_pos_to_local(cur_pos, global_size=128, local_size=11):
+    def global_pos_to_local(self, cur_pos, global_size=128, local_size=11):
         """
         将智能体全局位置映射到局部11x11特征图上
 
@@ -326,12 +329,12 @@ class Build_Feature:
     def build_feat(self, obs):
         self.reset()
         self.cat_var(obs)
-        self.local_visit = self.get_local_visit(cen_x = 5, cen_y = 5)
+        self.local_visit = self.get_local_visit(cen_x = self.hero['pos']['x'], cen_y = self.hero['pos']['z'])
 
-        pass_feat = self.available_pass_feat()
-        treasure_feat = self.available_treasure_feat()
-        destination_feat = self.available_destination_feat()
-        curpos_norm_feat = self.global_pos_to_local()
+        pass_feat = np.expand_dims(self.available_pass_feat(), axis = 0)
+        treasure_feat = np.expand_dims(self.available_treasure_feat(), axis = 0)
+        destination_feat = np.expand_dims(self.available_destination_feat(), axis = 0)
+        curpos_norm_feat = np.expand_dims(self.global_pos_to_local((self.hero['pos']['x'], self.hero['pos']['z'])), axis = 0)
 
         total_feat = np.concatenate([pass_feat, treasure_feat, destination_feat, curpos_norm_feat])
         

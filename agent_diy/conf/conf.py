@@ -22,7 +22,7 @@ class Config:
 
     # Initial learning rate
     # 初始的学习率
-    START_LR = 0.0003
+    START_LR = 0.0005
 
     # entropy regularization coefficient
     # 熵正则化系数
@@ -44,10 +44,7 @@ class Config:
     # features
     # 特征
     FEATURES = [
-        2,
-        6,
-        6,
-        8,
+        4 * 11 * 11,
     ]
 
     FEATURE_SPLIT_SHAPE = FEATURES
@@ -71,3 +68,13 @@ class Config:
     # learner上reverb样本的输入维度
     # **注意**，此项必须正确配置，应该与definition.py中的NumpyData2SampleData函数数据对齐，否则可能报样本维度错误
     SAMPLE_DIM = data_len
+    
+    # CNN网络参数
+    obs_shape = (4, 11, 11)
+    hidden_size = 512
+    kernel_size = 3
+    stride = 1
+    use_ReLU = True
+    use_orthogonal = True
+    
+    
