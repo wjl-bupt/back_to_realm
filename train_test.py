@@ -47,7 +47,7 @@ def train():
             "preload_ratio": "10",
             "train_batch_size": "2",
             "use_prometheus": "True",
-            "aisrv_connect_to_kaiwu_env_count": "4",
+            "aisrv_connect_to_kaiwu_env_count": "1",
             "dump_model_freq": "1",
             "max_step_no": "100",
         }
@@ -158,6 +158,7 @@ def check(proc: Process):
         print("\033[1;31m" + f"{proc.name} is not alive, please check error log" + "\033[0m")
         python_exec_shell(f"sh tools/stop.sh all")
     else:
+        # pass
         print(f"{proc.name} is alive")
 
 

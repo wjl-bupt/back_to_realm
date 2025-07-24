@@ -11,8 +11,9 @@ import numpy as np
 import time
 import os
 from kaiwu_agent.utils.common_func import Frame, attached
+
 from tools.train_env_conf_validate import read_usr_conf
-from agent_ppo.feature.definition import (
+from agent_diy.feature.definition import (
     SampleManager,
 )
 from tools.metrics_utils import get_training_metrics

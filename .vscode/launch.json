@@ -12,6 +12,15 @@
       "console": "integratedTerminal",
       "subProcess": true,
       "justMyCode": true
-    }
+    },
+    {
+      "name": "Aisrv Debugger",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "kaiwudrl/server/aisrv/aisrv.py",
+      "console": "integratedTerminal",
+      "subProcess": true,
+      "justMyCode": true,
+    },
   ]
 }

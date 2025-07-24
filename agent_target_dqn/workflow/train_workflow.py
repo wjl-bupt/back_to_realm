@@ -60,6 +60,7 @@ def workflow(envs, agents, logger=None, monitor=None):
 def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
     try:
         for episode in range(n_episode):
+            logger.info(f"current episode is {episode}, total episode is {episode}/{n_episode}")
             collector = list()
             win_rate = 0
 
@@ -112,6 +113,8 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
                 # Interact with the environment, execute actions, get the next state
                 # 与环境交互, 执行动作, 获取下一步的状态
                 step_no, _obs, terminated, truncated, _extra_info = env.step(act)
+                # logger.info(f"step no is {step_no}")
+                print(f"===== step_no is {step_no} ======")
                 if _extra_info["result_code"] != 0:
                     logger.warning(
                         f"_extra_info.result_code is {_extra_info['result_code']}, \

@@ -57,9 +57,7 @@ preload_model_id = 1000
 dump_model_freq = 100
 
 # Evaluation model configurations
-# 评估模式模型文件夹路径和ID
-eval_model_dir = "/data/ckpt/back_to_the_realm_v2_dqn/"
-eval_model_id = 0
+# 评估模式模型文件夹路径和ID，(junweiluo：这里配置我暂时删除)
 
 # === === === === === === === === === === === === === === === === === === === ===
 # Below configurations are framework-related, not recommended for modification
@@ -83,7 +81,7 @@ run_mode = "train"
 
 # Algorithm selection
 # 采用的算法
-algo = "target_dqn"
+algo = "diy"
 
 # Model synchronization interval (minutes)
 # learner/actor之间同步model文件的时间间隔
@@ -135,3 +133,5 @@ tensorflow_log_level = "INFO"
 # 设置actor和learner地址
 actor_addrs = { train_one = ["127.0.0.1:8888"]}
 learner_addrs = {train_one = ["127.0.0.1:9999"]}
+eval_model_dir = "/data/projects/back_to_the_realm_v2/ckpt"
+eval_model_id = "9366"
