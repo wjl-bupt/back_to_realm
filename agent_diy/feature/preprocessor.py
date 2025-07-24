@@ -265,18 +265,15 @@ class Build_Feature:
         """ 生成宝箱的特征图 """
         treasure_feat = np.zeros(shape = self.view.shape)
         cen_x, cen_y = (treasure_feat.shape[0] - 1) // 2, (treasure_feat.shape[1] - 1) // 2
-        treasure_feat = (self.view == 4).astype(float)
         
-        if np.sum(treasure_feat) == 0:
-            # 预测宝箱位置
-            for treasure in self.treasures:
-                status = treasure["status"]
-                if status == 1 or status == 0:
-                    continue
-                # 预测宝箱方位
-                direction_angle = DirectionAngles[RelativeDirection[treasure["relative_pos"]["direction"]]]
-                dx, dy = int(5 * np.cos(direction_angle)), int(5 * np.sin(direction_angle))
-                treasure_feat[cen_x + dx][cen_y + dy] = 1.0
+        
+        # 预测宝箱位置
+        for config_id, treasure in self.treasures.items():
+            status = treasure["status"]
+            # 预测宝箱方位
+            direction_angle = DirectionAngles[RelativeDirection[treasure["relative_pos"]["direction"]]]
+            dx, dy = int(5 * np.cos(direction_angle)), int(5 * np.sin(direction_angle))
+            treasure_feat[cen_x + dx][cen_y + dy] = 1.0
         
         # 没有探测到宝箱，并且也没有返回相对方位
         if np.sum(treasure_feat) == 0:
@@ -288,7 +285,7 @@ class Build_Feature:
         """ 生成终点的特征图 """
         dest_feat = np.zeros(shape = self.view.shape)
         cen_x, cen_y = (dest_feat.shape[0] - 1) // 2, (dest_feat.shape[1] - 1) // 2
-        dest_feat = (self.view == 3).astype(float)
+        # dest_feat = (self.view == 3).astype(float)
         
         for config_id, dest in self.destinations.items():
             direction_angle = DirectionAngles[RelativeDirection[dest["relative_pos"]["direction"]]]
