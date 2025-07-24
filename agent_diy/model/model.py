@@ -14,7 +14,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from agent_diy.conf.conf import Config
-
+from typing import List
 
 
 
@@ -24,7 +24,6 @@ class Model(nn.Module):
 
         # User-defined network
         # 用户自定义网络
-
 
 class CNNLayer(nn.Module):
     def __init__(self, obs_shape, hidden_size, kernel_size = 3, stride = 1):
@@ -61,139 +60,9 @@ class CNNLayer(nn.Module):
             init_(nn.Linear(hidden_size, hidden_size)), active_func)
 
     def forward(self, x):
-        x = x / 255.0
+        # x = x / 255.0
         x = self.cnn(x)
         return x
-
-
-class CNNBase(nn.Module):
-    def __init__(self, obs_shape, hidden_size):
-        super(CNNBase, self).__init__()
-        self.cnn = CNNLayer(obs_shape, self.hidden_size, self._use_orthogonal, self._use_ReLU)
-
-    def forward(self, x):
-        x = self.cnn(x)
-        return x
-
-
-class Flatten(nn.Module):
-    def forward(self, x):
-        return x.view(x.size(0), -1)
-
-def init(module, weight_init, bias_init, gain=1):
-    weight_init(module.weight.data, gain=gain)
-    if module.bias is not None:
-        bias_init(module.bias.data)
-    return module
-
-def get_clones(module, N):
-    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
-
-def check(input):
-    output = torch.from_numpy(input) if type(input) == np.ndarray else input
-    return output
-
-
-
-from typing import List
-import torch
-from torch import nn
-import numpy as np
-from agent_diy.conf.conf import Config
-
-import sys
-import os
-
-if os.path.basename(sys.argv[0]) == "learner.py":
-    import torch
-
-    torch.set_num_interop_threads(2)
-    torch.set_num_threads(2)
-else:
-    import torch
-
-    torch.set_num_interop_threads(4)
-    torch.set_num_threads(4)
-
-
-class NetworkModelBase(nn.Module):
-    def __init__(self):
-        super().__init__()
-        # feature configure parameter
-        # 特征配置参数
-        self.data_split_shape = Config.DATA_SPLIT_SHAPE
-        self.feature_split_shape = Config.FEATURE_SPLIT_SHAPE
-        self.label_size = Config.ACTION_NUM
-        self.feature_len = Config.FEATURE_LEN
-        self.value_num = Config.VALUE_NUM
-
-        self.var_beta = Config.BETA_START
-        self.vf_coef = Config.VF_COEF
-
-        self.clip_param = Config.CLIP_PARAM
-
-        self.data_len = Config.data_len
-
-        # Main MLP network
-        # 主MLP网络
-        self.main_fc_dim_list = [self.feature_len, 128, 256]
-        self.main_mlp_net = MLP(self.main_fc_dim_list, "main_mlp_net", non_linearity_last=True)
-        self.label_mlp = MLP([256, 64, self.label_size], "label_mlp")
-        self.value_mlp = MLP([256, 64, self.value_num], "value_mlp")
-
-    def process_legal_action(self, label, legal_action):
-        label_max, _ = torch.max(label * legal_action, 1, True)
-        label = label - label_max
-        label = label * legal_action
-        label = label + 1e5 * (legal_action - 1)
-        return label
-
-    def forward(self, feature, legal_action):
-        # Main MLP processing
-        # 主MLP处理
-        fc_mlp_out = self.main_mlp_net(feature)
-
-        # Action and value processing
-        # 处理动作和值
-        label_mlp_out = self.label_mlp(fc_mlp_out)
-        label_out = self.process_legal_action(label_mlp_out, legal_action)
-
-        prob = torch.nn.functional.softmax(label_out, dim=1)
-        value = self.value_mlp(fc_mlp_out)
-
-        return prob, value
-
-
-class NetworkModelActor(NetworkModelBase):
-    def format_data(self, obs, legal_action):
-        return (
-            torch.tensor(obs).to(torch.float32),
-            torch.tensor(legal_action).to(torch.float32),
-        )
-
-
-class NetworkModelLearner(NetworkModelBase):
-    def format_data(self, datas):
-        return datas.view(-1, self.data_len).float().split(self.data_split_shape, dim=1)
-
-    def forward(self, data_list, inference=False):
-        feature = data_list[0]
-        legal_action = data_list[-1]
-        return super().forward(feature, legal_action)
-
-
-def make_fc_layer(in_features: int, out_features: int):
-    # Wrapper function to create and initialize a linear layer
-    # 创建并初始化一个线性层
-    fc_layer = nn.Linear(in_features, out_features)
-
-    # initialize weight and bias
-    # 初始化权重及偏移量
-    nn.init.orthogonal(fc_layer.weight)
-    nn.init.zeros_(fc_layer.bias)
-
-    return fc_layer
-
 
 class MLP(nn.Module):
     def __init__(
@@ -217,3 +86,60 @@ class MLP(nn.Module):
 
     def forward(self, data):
         return self.fc_layers(data)
+
+
+class CNNBase(nn.Module):
+    def __init__(self, obs_shape, hidden_size):
+        super(CNNBase, self).__init__()
+        self.cnn = CNNLayer(obs_shape, self.hidden_size, self._use_orthogonal, self._use_ReLU)
+        self.label_mlp = MLP([hidden_size, self.label_size], "label_mlp")
+        self.value_mlp = MLP([hidden_size, self.value_num], "value_mlp")
+
+    def process_legal_action(self, label, legal_action):
+        label_max, _ = torch.max(label * legal_action, 1, True)
+        label = label - label_max
+        label = label * legal_action
+        label = label + 1e5 * (legal_action - 1)
+        return label
+
+    def forward(self, feature, legal_action):
+        # Main MLP processing
+        # 主MLP处理
+        conv_output = self.cnn(feature)
+        label_mlp_out = self.label_mlp(conv_output)
+        label_out = self.process_legal_action(label_mlp_out, legal_action)
+        prob = torch.nn.functional.softmax(label_out, dim=1)
+        value = self.value_mlp(conv_output)
+
+        return prob, value
+
+
+
+class Flatten(nn.Module):
+    def forward(self, x):
+        return x.view(x.size(0), -1)
+
+def init(module, weight_init, bias_init, gain=1):
+    weight_init(module.weight.data, gain=gain)
+    if module.bias is not None:
+        bias_init(module.bias.data)
+    return module
+
+def get_clones(module, N):
+    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
+
+def check(input):
+    output = torch.from_numpy(input) if type(input) == np.ndarray else input
+    return output
+
+def make_fc_layer(in_features: int, out_features: int):
+    # Wrapper function to create and initialize a linear layer
+    # 创建并初始化一个线性层
+    fc_layer = nn.Linear(in_features, out_features)
+
+    # initialize weight and bias
+    # 初始化权重及偏移量
+    nn.init.orthogonal(fc_layer.weight)
+    nn.init.zeros_(fc_layer.bias)
+
+    return fc_layer
