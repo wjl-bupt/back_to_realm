@@ -112,6 +112,8 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
                 # Interact with the environment, execute actions, get the next state
                 # 与环境交互, 执行动作, 获取下一步的状态
                 step_no, _obs, terminated, truncated, _extra_info = env.step(act)
+                
+                logger.info(f"weijun.luo loginfo: step_no is {step_no}")
                 if _extra_info["result_code"] != 0:
                     logger.warning(
                         f"_extra_info.result_code is {_extra_info['result_code']}, \

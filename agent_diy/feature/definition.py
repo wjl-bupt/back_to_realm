@@ -157,7 +157,7 @@ class SampleManager:
         adv = np.array(self.adv).transpose()
         tdlamret = np.array(self.tdlamret).transpose()
 
-        data = np.concatenate([feature.reshape(-1,100), reward, value, tdlamret, adv, actions, probs, legal_action]).transpose()
+        data = np.concatenate([feature.reshape(-1,reward.shape[-1]), reward, value, tdlamret, adv, actions, probs, legal_action]).transpose()
 
         samples = []
         for i in range(0, self.count):

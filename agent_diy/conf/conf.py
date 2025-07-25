@@ -39,12 +39,12 @@ class Config:
     # actions
     # 动作
     ACTION_LEN = 1
-    ACTION_NUM = 8
+    ACTION_NUM = 16
 
     # features
     # 特征
     FEATURES = [
-        4 * 11 * 11,
+        6 * 11 * 11,
     ]
 
     FEATURE_SPLIT_SHAPE = FEATURES
@@ -68,13 +68,17 @@ class Config:
     # learner上reverb样本的输入维度
     # **注意**，此项必须正确配置，应该与definition.py中的NumpyData2SampleData函数数据对齐，否则可能报样本维度错误
     SAMPLE_DIM = data_len
-    
+
+    use_cnn = True
     # CNN网络参数
-    obs_shape = (4, 11, 11)
+    obs_shape = (6, 11, 11)
     hidden_size = 512
     kernel_size = 3
     stride = 1
     use_ReLU = True
     use_orthogonal = True
+    
+    
+
     
     

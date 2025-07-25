@@ -9,6 +9,7 @@ Author: Tencent AI Arena Authors
 
 """
 
+import json
 import numpy as np
 import math
 from agent_diy.feature.definition import RelativeDistance, RelativeDirection, DirectionAngles, reward_process
@@ -110,7 +111,7 @@ class Preprocessor:
         self.pb2struct(frame_state, last_action)
         # Legal action
         # 合法动作
-        legal_action = self.get_legal_action()
+        legal_action = self.get_legal_action(frame_state)
 
         # Feature
         # 特征
@@ -125,7 +126,10 @@ class Preprocessor:
             reward_process(self.feature_end_pos[-1], self.feature_history_pos[-1]),
         )
 
-    def get_legal_action(self):
+    def get_legal_action(self, frame_state):
+        obs, _ = frame_state
+        # MOVING Legal Actions
+        # ========= 防止撞墙的逻辑 ============= #
         # if last_action is move and current position is the same as last position, add this action to bad_move_ids
         # 如果上一步的动作是移动，且当前位置与上一步位置相同，则将该动作加入到bad_move_ids中
         if (
@@ -145,6 +149,44 @@ class Preprocessor:
             self.bad_move_ids = set()
             return [self.move_usable] * self.move_action_num
 
+        # SKILL Legal Actions
+        hero = obs["frame_state"]["heroes"][0]
+        if hero['talent']['status'] == 0:
+            legal_skill_actions = [False] * self.move_action_num
+        else:
+            legal_skill_actions = [True] * self.move_action_num
+            # 利用地图判断合法性，如果落点之上全是不可通行区域则禁掉；
+                # 八个方向的单位向量，顺序对应方向枚举
+            directions = [
+                (1, 0),    # Angle_0
+                (1, 1),    # Angle_45
+                (0, 1),    # Angle_90
+                (-1, 1),   # Angle_135
+                (-1, 0),   # Angle_180
+                (-1, -1),  # Angle_225
+                (0, -1),   # Angle_270
+                (1, -1),   # Angle_315
+            ]
+
+            cur_x, cur_z = hero["pos"]["x"], hero["pos"]["z"]
+
+            for idx, (dx, dz) in enumerate(directions):
+                valid_target = None
+                for step in range(1, 17):  # 闪现最远16格
+                    tx, tz = cur_x + dx * step, cur_z + dz * step
+
+                    if not (0 <= tx < 128 and 0 <= tz < 128):
+                        break  # 越界
+
+                    if self.MyFeatureClass.new_memory[tz][tx] != 0:
+                        valid_target = (tx, tz)  # 找到最近合法点
+
+                if valid_target is not None:
+                    legal_skill_actions[idx] = True  # 至少方向上存在合法终点
+                else:
+                    legal_skill_actions[idx] = False 
+        
+        legal_action = np.concatenate([legal_action, legal_skill_actions])
         return legal_action
 
 
@@ -161,9 +203,12 @@ class Build_Feature:
         self.starting = dict()
         self.map_dict = [ self.buff, self.destinations, self.starting, self.treasures ]
         
+        self.fish_mapjson = json.load(open("/data/projects/back_to_the_realm_v2/kaiwu_env/conf/back_to_the_realm_v2/map_data/fish.json", "r"))
         self.visit_map = np.zeros(shape=(128, 128))
-        self.map_memory = np.ones(shape=(128, 128))
+        self.map_memory = np.flipud(np.array(self.fish_mapjson["Flags"]).reshape(128, 128))
         self.local_visit = None
+        self.new_memory = np.flipud(np.array(self.fish_mapjson["Flags"]).reshape(128, 128))
+        
         
     
     def reset(self):
@@ -217,6 +262,8 @@ class Build_Feature:
         block_mask = (map_obs == 0) & valid_mask
         # 将 map_memory 中对应的不可通区域设置为 0
         self.map_memory[gx_grid[block_mask], gz_grid[block_mask]] = 0
+    
+    
 
     def get_local_visit(self, cen_x, cen_y, size=11, pad_val=2000):
         """
@@ -256,16 +303,35 @@ class Build_Feature:
         """ 生成可通行区域的特征图 """
         pass_feat = np.zeros(shape = self.view.shape)
         cen_x, cen_y = (pass_feat.shape[0] - 1) // 2, (pass_feat.shape[1] - 1) // 2
-        pass_feat = (1.0 - self.local_visit / (np.max(self.local_visit) + 1e-6)) * (self.view == 1)
+        # pass_feat = (1.0 - self.local_visit / (np.max(self.local_visit) + 1e-6)) * (self.view == 1)
         pass_feat[cen_x][cen_y] = 0.0
         
         return pass_feat
+    
+    def available_buff_feat(self):
+        """ buff特征图 """
+        buff_feat = np.zeros(shape = self.view.shape)
+        cen_x, cen_y = (buff_feat.shape[0] - 1) // 2, (buff_feat.shape[1] - 1) // 2
+        # dest_feat = (self.view == 3).astype(float)
+        for config_id, buff in self.buff.items():
+            direction_angle = DirectionAngles[RelativeDirection[buff["relative_pos"]["direction"]]]
+            dx, dy = int(5 * np.cos(direction_angle)), int(5 * np.sin(direction_angle))
+            buff_feat[cen_x + dx][cen_y + dy] = 1.0
+        
+        if np.sum(buff_feat) == 0:
+            pass
+            
+        return buff_feat
+        
+    
     
     def available_treasure_feat(self):
         """ 生成宝箱的特征图 """
         treasure_feat = np.zeros(shape = self.view.shape)
         cen_x, cen_y = (treasure_feat.shape[0] - 1) // 2, (treasure_feat.shape[1] - 1) // 2
         
+        if len(self.treasures) > 0:
+            print(f"0000  get treasures info 0000, length is {len(self.treasures)}")
         
         # 预测宝箱位置
         for config_id, treasure in self.treasures.items():
@@ -274,6 +340,7 @@ class Build_Feature:
             direction_angle = DirectionAngles[RelativeDirection[treasure["relative_pos"]["direction"]]]
             dx, dy = int(5 * np.cos(direction_angle)), int(5 * np.sin(direction_angle))
             treasure_feat[cen_x + dx][cen_y + dy] = 1.0
+        
         
         # 没有探测到宝箱，并且也没有返回相对方位
         if np.sum(treasure_feat) == 0:
@@ -287,6 +354,7 @@ class Build_Feature:
         cen_x, cen_y = (dest_feat.shape[0] - 1) // 2, (dest_feat.shape[1] - 1) // 2
         # dest_feat = (self.view == 3).astype(float)
         
+        
         for config_id, dest in self.destinations.items():
             direction_angle = DirectionAngles[RelativeDirection[dest["relative_pos"]["direction"]]]
             dx, dy = int(5 * np.cos(direction_angle)), int(5 * np.sin(direction_angle))
@@ -296,6 +364,21 @@ class Build_Feature:
             pass
             
         return dest_feat
+
+
+    def availble_dynamic_obstacle_feat(self):
+        """ 好像智能体在fish.json地图上永远不会越界 """
+        cur_x, cur_z = self.hero['pos']['x'], self.hero['pos']['z']
+        half = self.view.shape[0] // 2
+        # 从原始地图中获取没有动态障碍物的地图
+        origin_local_view = self.map_memory[cur_z - half : cur_z + half + 1,
+                                            cur_x - half : cur_x + half + 1]
+        
+        obstacle_feat = (origin_local_view != (self.view >= 1)).astype(float)
+        
+        
+        return obstacle_feat
+
 
     def global_pos_to_local(self, cur_pos, global_size=128, local_size=11):
         """
@@ -318,10 +401,35 @@ class Build_Feature:
         # 防止越界
         x_scaled = min(max(x_scaled, 0), local_size - 1)
         y_scaled = min(max(y_scaled, 0), local_size - 1)
-
         feature_map[x_scaled, y_scaled] = 1.0
 
         return feature_map
+
+    def update_dynamic_obstacles(self):
+        """
+        local_map_info: np.array shape (11, 11), 0不可通行(含动态障碍物), 其他>0可通行
+        cur_x, cur_z: 英雄在全局地图上的坐标
+        """
+
+        half = 11 // 2
+        cur_x, cur_z = self.hero['pos']['x'], self.hero['pos']['z']
+        # 计算全局地图对应局部地图的起点
+        x_start, x_end = cur_x - half, cur_x + half + 1
+        z_start, z_end = cur_z - half, cur_z + half + 1
+
+        # 取出对应的全局地图区域切片
+        global_submap = self.new_memory[z_start:z_end, x_start:x_end]
+
+        # 动态障碍物标记位置（局部地图中值为0，且不改变之前静态墙）
+        # 只更新之前可通行位置上的动态障碍物
+        dynamic_obstacle_mask = (self.view == 0) & (global_submap != 0)
+
+        # 把这些动态障碍物位置标记为不可通行(0)
+        global_submap[dynamic_obstacle_mask] = 0
+
+        # 不改变其他位置，直接写回
+        self.new_memory[z_start:z_end, x_start:x_end] = global_submap
+    
     
     def build_feat(self, obs):
         self.reset()
@@ -329,10 +437,14 @@ class Build_Feature:
         self.local_visit = self.get_local_visit(cen_x = self.hero['pos']['x'], cen_y = self.hero['pos']['z'])
 
         pass_feat = np.expand_dims(self.available_pass_feat(), axis = 0)
+        obstacle_feat = np.expand_dims(self.availble_dynamic_obstacle_feat(), axis = 0)
+        buff_feat = np.expand_dims(self.available_buff_feat(), axis = 0)
         treasure_feat = np.expand_dims(self.available_treasure_feat(), axis = 0)
         destination_feat = np.expand_dims(self.available_destination_feat(), axis = 0)
         curpos_norm_feat = np.expand_dims(self.global_pos_to_local((self.hero['pos']['x'], self.hero['pos']['z'])), axis = 0)
-
-        total_feat = np.concatenate([pass_feat, treasure_feat, destination_feat, curpos_norm_feat])
+        
+        total_feat = np.concatenate([pass_feat, obstacle_feat, buff_feat, 
+                                     treasure_feat, destination_feat, curpos_norm_feat
+                                    ])
         
         return total_feat

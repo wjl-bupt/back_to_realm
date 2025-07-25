@@ -98,9 +98,12 @@ class CNNBase(nn.Module):
         self.value_mlp = MLPLayer([Config.hidden_size, Config.VALUE_NUM], "value_mlp")
 
     def process_legal_action(self, label, legal_action):
+        """ 处理legal action"""
         label_max, _ = torch.max(label * legal_action, 1, True)
+        # 有点类似于归一化？
         label = label - label_max
         label = label * legal_action
+        # 防止softmax 时出现0错误
         label = label + 1e5 * (legal_action - 1)
         return label
 
@@ -114,6 +117,36 @@ class CNNBase(nn.Module):
         value = self.value_mlp(conv_output)
 
         return prob, value
+
+class MLPBase(nn.Module):
+    def __init__(self):
+        super(MLPBase, self).__init__()
+        self.share_mlp = MLPLayer([Config.FEATURE_LEN, Config.hidden_size], "share_mlp")
+        self.label_mlp = MLPLayer([Config.hidden_size, Config.ACTION_NUM], "label_mlp")
+        self.value_mlp = MLPLayer([Config.hidden_size, Config.VALUE_NUM], "value_mlp")
+
+    def process_legal_action(self, label, legal_action):
+        """ 处理legal action"""
+        label_max, _ = torch.max(label * legal_action, 1, True)
+        # 有点类似于归一化？
+        label = label - label_max
+        label = label * legal_action
+        # 防止softmax 时出现0错误
+        label = label + 1e5 * (legal_action - 1)
+        return label
+
+    def forward(self, feature, legal_action):
+        # Main MLP processing
+        # 主MLP处理
+        conv_output = self.share_mlp(feature)
+        label_mlp_out = self.label_mlp(conv_output)
+        label_out = self.process_legal_action(label_mlp_out, legal_action)
+        prob = torch.nn.functional.softmax(label_out, dim=1)
+        value = self.value_mlp(conv_output)
+
+        return prob, value
+
+
 
 class NetworkModelActor(CNNBase):
     def format_data(self, obs, legal_action):
