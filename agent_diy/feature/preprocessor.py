@@ -12,7 +12,7 @@ Author: Tencent AI Arena Authors
 import json
 import numpy as np
 import math
-from agent_diy.feature.definition import RelativeDistance, RelativeDirection, DirectionAngles, reward_process
+from agent_diy.feature.definition import RelativeDistance, RelativeDirection, DirectionAngles, reward_process, ComputeReward
 
 
 def norm(v, max_v, min_v=0):
@@ -27,7 +27,8 @@ class Preprocessor:
         
         # NOTE(junweiluo):
         self.MyFeatureClass = Build_Feature()
-
+        self.RewCompute = ComputeReward()
+    
     def reset(self):
         self.step_no = 0
         self.cur_pos = (0, 0)
@@ -119,11 +120,20 @@ class Preprocessor:
         
         obs, _ = frame_state
         feature = self.MyFeatureClass.build_feat(obs = obs)
+        
+        rew = self.RewCompute.compute_reward(end_dist = self.feature_end_pos[-1], 
+                                             history_dist = self.feature_history_pos[-1],
+                                             organs = obs["frame_state"]["organs"],
+                                             cur_pos = (obs["frame_state"]["heroes"][0]["pos"]["x"], obs["frame_state"]["heroes"][0]["pos"]["z"]),
+                                             history_pos = self.history_pos,
+                                             step_no = obs['frame_state']['step_no']
+                                            )
 
         return (
             feature,
             legal_action,
-            reward_process(self.feature_end_pos[-1], self.feature_history_pos[-1]),
+            rew,
+            # reward_process(self.feature_end_pos[-1], self.feature_history_pos[-1]),
         )
 
     def get_legal_action(self, frame_state):
@@ -169,18 +179,14 @@ class Preprocessor:
             ]
 
             cur_x, cur_z = hero["pos"]["x"], hero["pos"]["z"]
-
             for idx, (dx, dz) in enumerate(directions):
                 valid_target = None
                 for step in range(1, 17):  # 闪现最远16格
                     tx, tz = cur_x + dx * step, cur_z + dz * step
-
                     if not (0 <= tx < 128 and 0 <= tz < 128):
                         break  # 越界
-
                     if self.MyFeatureClass.new_memory[tz][tx] != 0:
                         valid_target = (tx, tz)  # 找到最近合法点
-
                 if valid_target is not None:
                     legal_skill_actions[idx] = True  # 至少方向上存在合法终点
                 else:
@@ -205,11 +211,9 @@ class Build_Feature:
         
         self.fish_mapjson = json.load(open("/data/projects/back_to_the_realm_v2/kaiwu_env/conf/back_to_the_realm_v2/map_data/fish.json", "r"))
         self.visit_map = np.zeros(shape=(128, 128))
-        self.map_memory = np.flipud(np.array(self.fish_mapjson["Flags"]).reshape(128, 128))
+        self.map_memory = np.array(self.fish_mapjson["Flags"]).reshape(128, 128)
         self.local_visit = None
-        self.new_memory = np.flipud(np.array(self.fish_mapjson["Flags"]).reshape(128, 128))
-        
-        
+        self.new_memory = np.array(self.fish_mapjson["Flags"]).reshape(128, 128)
     
     def reset(self):
         self.obs = None
@@ -221,10 +225,13 @@ class Build_Feature:
     def cat_var(self, obs):
         self.obs = obs
         self.hero = obs["frame_state"]["heroes"][0]
-        self.view = np.array([v["values"] for v in obs["map_info"]])
+        # view 要 transpose一下，这样子才能和地图信息对应得上，transpose后
+        #                        3   2   1
+        #                     4      A      0
+        #                        5   6   7
+        self.view = np.transpose(np.transpose(np.array([v["values"] for v in obs["map_info"]])))
         # 其中0表示不可通行，1表示可以通行，2表示起点位置，3表示终点位置，4表示宝箱位置，6表示加速增益位置。
         self.organs = obs["frame_state"]["organs"]
-        self.update_memory_and_visit(map_obs = self.view, cur_pos = (self.hero['pos']['x'], self.hero['pos']['z']))
         
         def check(type_, organ, config_id):
             if config_id not in self.map_dict[type_]:
@@ -245,23 +252,6 @@ class Build_Feature:
                 check(type_ = 2, organ = organ, config_id = config_id)
             else:
                 check(type_ = 3, organ = organ, config_id = config_id)
-        
-          
-    def update_memory_and_visit(self, map_obs, cur_pos):
-        x, z = cur_pos
-        self.visit_map[x, z] += 1
-
-        # 计算当前局部视野覆盖的全局坐标范围
-        gx = np.arange(x - 5, x + 6)
-        gz = np.arange(z - 5, z + 6)
-        # 生成网格坐标
-        gx_grid, gz_grid = np.meshgrid(gx, gz)  # 注意 gz 是行，gx 是列，shape=(11, 11)
-        # 合法范围 mask（防止越界）
-        valid_mask = (gx_grid >= 0) & (gx_grid < 128) & (gz_grid >= 0) & (gz_grid < 128)
-        # 创建不可通行 mask
-        block_mask = (map_obs == 0) & valid_mask
-        # 将 map_memory 中对应的不可通区域设置为 0
-        self.map_memory[gx_grid[block_mask], gz_grid[block_mask]] = 0
     
     
 
@@ -309,7 +299,7 @@ class Build_Feature:
         return pass_feat
     
     def available_buff_feat(self):
-        """ buff特征图 """
+        """ buff  """
         buff_feat = np.zeros(shape = self.view.shape)
         cen_x, cen_y = (buff_feat.shape[0] - 1) // 2, (buff_feat.shape[1] - 1) // 2
         # dest_feat = (self.view == 3).astype(float)

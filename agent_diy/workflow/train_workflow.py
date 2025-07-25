@@ -95,6 +95,9 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
             diy_5 = 0
 
             max_step_no = int(os.environ.get("max_step_no", "0"))
+            
+            # NOTE(junweiluo): 增加一个指标, episodic
+            episode_return = 0.0
 
             while not done:
                 # Feature processing
@@ -113,7 +116,7 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
                 # 与环境交互, 执行动作, 获取下一步的状态
                 step_no, _obs, terminated, truncated, _extra_info = env.step(act)
                 
-                logger.info(f"weijun.luo loginfo: step_no is {step_no}")
+                # logger.info(f"weijun.luo loginfo: step_no is {step_no}")
                 if _extra_info["result_code"] != 0:
                     logger.warning(
                         f"_extra_info.result_code is {_extra_info['result_code']}, \
@@ -124,6 +127,7 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
                 step += 1
 
                 reward = obs_data.reward
+                episode_return += 0.95**step_no * np.array(reward)
 
                 # Construct task frames to prepare for sample construction
                 # 构造任务帧，为构造样本做准备
@@ -153,14 +157,15 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
                         f"Game terminated! step_no:{step_no} score:{game_info['total_score']} win_rate:{win_rate}"
                     )
                 done = terminated or truncated or (max_step_no > 0 and step >= max_step_no)
-
+                # NOTE
+                # reward += final_reward
                 # If the task is over, the sample is processed and sent to training
                 # 如果任务结束，则进行样本处理，将样本送去训练
                 if done:
                     if monitor:
                         monitor_data = {
-                            "diy_1": win_rate,
-                            "diy_2": diy_2,
+                            "win_rate": win_rate,
+                            "episodic_return": episode_return,
                             "diy_3": diy_3,
                             "diy_4": diy_4,
                             "diy_5": diy_5,

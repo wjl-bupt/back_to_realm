@@ -10,6 +10,7 @@ Author: Tencent AI Arena Authors
 from agent_diy.conf.conf import Config
 from kaiwu_agent.utils.common_func import create_cls, attached
 import numpy as np
+import math
 
 # The create_cls function is used to dynamically create a class.
 # The first parameter of the function is the type name, and the remaining parameters are the attributes of the class.
@@ -146,7 +147,6 @@ class SampleManager:
         return ret
 
     def _get_game_data(self):
-        # NOTE(此处feature不再transpose)
         feature = np.array(self.feature).transpose()
         
         probs = np.array(self.probs).transpose()
@@ -165,6 +165,111 @@ class SampleManager:
 
         return samples
 
+
+class ComputeReward:
+    def __init__(self):
+        self.obstacle_reward = 0.0
+        self.buff_reward = 0.0
+        self.treasure_reward = 0.0
+        self.explore_reward = 0.0
+        self.goal_reward = 0.0
+    
+    def norm(self, v, max_v, min_v=0):
+        v = np.maximum(np.minimum(max_v, v), min_v)
+        return (v - min_v) / (max_v - min_v)
+    
+    
+    def compute_obstacle_reward(self):
+        return 0.0
+
+    def compute_dist_reward(self, cur_pos, target_pos):
+        """ buff reward """
+        relative_pos = tuple(y - x for x, y in zip(cur_pos, target_pos))
+        dist = np.linalg.norm(relative_pos)
+        norm_dist = self.norm(dist, 1.41 * 128)
+        
+        return min(0, 1.0 -  norm_dist)
+    
+
+    def compute_starting_point_reward(self, cur_pos, starting_pos, step_no):
+        relative_pos = tuple(y - x for x, y in zip(cur_pos, starting_pos))
+        dist = np.linalg.norm(relative_pos)
+        norm_dist = self.norm(dist, 1.41 * 128)
+        return 0.0
+        
+    
+    def compute_explore_reward(self, history_pos, threshold = 1.5, scale = 0.01):
+        if len(history_pos) != 10:
+            return 0.0
+        coords = np.array(history_pos)  # (10, 2)
+        diffs = coords[:, None, :] - coords[None, :, :]  # shape (10, 10, 2)
+        dists = np.linalg.norm(diffs, axis=-1)  # shape (10, 10)
+        i_upper = np.triu_indices(10, k=1)
+        unique_dists = dists[i_upper]
+        avg_dist = np.mean(unique_dists)
+        print(f"weijun.luo print info: avg dist {avg_dist}")
+        if avg_dist < threshold:
+            return -scale * (threshold - avg_dist)
+        else:
+            return 0.0
+
+    def guess_target_pos(self, organ, cur_pos):
+        if organ["status"] != -1:
+            return  (organ["pos"]["x"], organ["pos"]["z"])
+        
+        target_pos_dis = RelativeDistance[organ["relative_pos"]["l2_distance"]]
+        target_pos_dir = RelativeDirection[organ["relative_pos"]["direction"]]
+        distance = target_pos_dis * 20
+        theta = DirectionAngles[target_pos_dir]
+        delta_x = distance * math.cos(math.radians(theta))
+        delta_z = distance * math.sin(math.radians(theta))
+        target_pos = (
+                    max(0, min(128, round(cur_pos[0] + delta_x))),
+                    max(0, min(128, round(cur_pos[1] + delta_z))),
+                )
+        return target_pos
+    
+    def reset(self):
+        self.obstacle_reward = 0.0
+        self.buff_reward = 0.0
+        self.treasure_reward = 0.0
+        self.explore_reward = 0.0
+        self.goal_reward = 0.0
+    
+    def compute_reward(self, end_dist, history_dist, organs, cur_pos, history_pos, step_no):
+        """ 计算奖励 """
+        self.reset()
+        for organ in organs:
+            if organ["status"] == 0:
+                continue
+            config_id = organ["config_id"]
+            target_pos = self.guess_target_pos(organ, cur_pos)
+            # buff 距离
+            if config_id == 0:
+                self.buff_reward += self.compute_dist_reward(cur_pos, target_pos) 
+            # 起点惩罚
+            elif config_id == 21:
+                pass
+            # 终点
+            elif config_id == 22:
+                self.goal_reward += min(0.001, 0.05 * history_dist)
+            # 宝箱奖励
+            else:
+                self.treasure_reward += self.compute_dist_reward(cur_pos, target_pos)
+        # 步数奖励
+        step_reward = -0.001
+        end_reward = -0.02 * end_dist
+        
+        # 探索奖励
+        self.explore_reward = self.compute_explore_reward(history_pos)
+        
+        # 依据时间长度给予奖励
+        weight = max(0.01, (1000 - step_no ) / 1000)
+
+        total_reward = [step_reward + weight * (self.buff_reward + self.treasure_reward) + self.goal_reward + end_reward + self.explore_reward]
+        print(f'weijun.luo total rew is {total_reward}')
+        
+        return total_reward 
 
 @attached
 def SampleData2NumpyData(g_data):
