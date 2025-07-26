@@ -30,7 +30,7 @@ def workflow(envs, agents, logger=None, monitor=None):
 
         # Read and validate configuration file
         # 配置文件读取和校验
-        usr_conf = read_usr_conf("agent_ppo/conf/train_env_conf.toml", logger)
+        usr_conf = read_usr_conf("agent_diy/conf/train_env_conf.toml", logger)
         if usr_conf is None:
             logger.error(f"usr_conf is None, please check agent_ppo/conf/train_env_conf.toml")
             return

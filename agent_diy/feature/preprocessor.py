@@ -193,6 +193,7 @@ class Preprocessor:
                     legal_skill_actions[idx] = False 
         
         legal_action = np.concatenate([legal_action, legal_skill_actions])
+        
         return legal_action
 
 
@@ -304,8 +305,9 @@ class Build_Feature:
         cen_x, cen_y = (buff_feat.shape[0] - 1) // 2, (buff_feat.shape[1] - 1) // 2
         # dest_feat = (self.view == 3).astype(float)
         for config_id, buff in self.buff.items():
-            direction_angle = DirectionAngles[RelativeDirection[buff["relative_pos"]["direction"]]]
-            dx, dy = int(5 * np.cos(direction_angle)), int(5 * np.sin(direction_angle))
+            direction_angle = np.deg2rad(DirectionAngles[RelativeDirection[buff["relative_pos"]["direction"]]])
+            l2_dist = RelativeDistance[buff['relative_pos']['l2_distance']]
+            dx, dy = int(l2_dist * np.cos(direction_angle)), int(l2_dist * np.sin(direction_angle))
             buff_feat[cen_x + dx][cen_y + dy] = 1.0
         
         if np.sum(buff_feat) == 0:
@@ -320,15 +322,15 @@ class Build_Feature:
         treasure_feat = np.zeros(shape = self.view.shape)
         cen_x, cen_y = (treasure_feat.shape[0] - 1) // 2, (treasure_feat.shape[1] - 1) // 2
         
-        if len(self.treasures) > 0:
-            print(f"0000  get treasures info 0000, length is {len(self.treasures)}")
-        
         # 预测宝箱位置
         for config_id, treasure in self.treasures.items():
             status = treasure["status"]
+            if status == 0:
+                continue
             # 预测宝箱方位
-            direction_angle = DirectionAngles[RelativeDirection[treasure["relative_pos"]["direction"]]]
-            dx, dy = int(5 * np.cos(direction_angle)), int(5 * np.sin(direction_angle))
+            direction_angle = np.deg2rad(DirectionAngles[RelativeDirection[treasure["relative_pos"]["direction"]]])
+            l2_dist = RelativeDistance[treasure['relative_pos']['l2_distance']]
+            dx, dy = int(l2_dist * np.cos(direction_angle)), int(l2_dist * np.sin(direction_angle))
             treasure_feat[cen_x + dx][cen_y + dy] = 1.0
         
         
@@ -346,8 +348,9 @@ class Build_Feature:
         
         
         for config_id, dest in self.destinations.items():
-            direction_angle = DirectionAngles[RelativeDirection[dest["relative_pos"]["direction"]]]
-            dx, dy = int(5 * np.cos(direction_angle)), int(5 * np.sin(direction_angle))
+            direction_angle = np.deg2rad(DirectionAngles[RelativeDirection[dest["relative_pos"]["direction"]]])
+            l2_dist = RelativeDistance[dest['relative_pos']['l2_distance']]
+            dx, dy = int(l2_dist * np.cos(direction_angle)), int(l2_dist * np.sin(direction_angle))
             dest_feat[cen_x + dx][cen_y + dy] = 1.0
         
         if np.sum(dest_feat) == 0:
@@ -427,14 +430,12 @@ class Build_Feature:
         self.local_visit = self.get_local_visit(cen_x = self.hero['pos']['x'], cen_y = self.hero['pos']['z'])
 
         pass_feat = np.expand_dims(self.available_pass_feat(), axis = 0)
-        obstacle_feat = np.expand_dims(self.availble_dynamic_obstacle_feat(), axis = 0)
+        # obstacle_feat = np.expand_dims(self.availble_dynamic_obstacle_feat(), axis = 0)
         buff_feat = np.expand_dims(self.available_buff_feat(), axis = 0)
         treasure_feat = np.expand_dims(self.available_treasure_feat(), axis = 0)
         destination_feat = np.expand_dims(self.available_destination_feat(), axis = 0)
         curpos_norm_feat = np.expand_dims(self.global_pos_to_local((self.hero['pos']['x'], self.hero['pos']['z'])), axis = 0)
         
-        total_feat = np.concatenate([pass_feat, obstacle_feat, buff_feat, 
-                                     treasure_feat, destination_feat, curpos_norm_feat
-                                    ])
+        total_feat = np.concatenate([pass_feat, buff_feat, treasure_feat, destination_feat, curpos_norm_feat])
         
         return total_feat

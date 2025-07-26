@@ -264,7 +264,7 @@ class ComputeReward:
         self.explore_reward = self.compute_explore_reward(history_pos)
         
         # 依据时间长度给予奖励
-        weight = max(0.01, (1000 - step_no ) / 1000)
+        weight = max(0.1, (1000 - step_no ) / 1000)
 
         total_reward = [step_reward + weight * (self.buff_reward + self.treasure_reward) + self.goal_reward + end_reward + self.explore_reward]
         print(f'weijun.luo total rew is {total_reward}')
