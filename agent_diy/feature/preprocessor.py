@@ -374,17 +374,6 @@ class Build_Feature:
 
 
     def global_pos_to_local(self, cur_pos, global_size=128, local_size=11):
-        """
-        将智能体全局位置映射到局部11x11特征图上
-
-        Args:
-            cur_pos: (x, y) 全局坐标，范围 [0, global_size-1]
-            global_size: 全局地图边长
-            local_size: 局部特征图边长
-        
-        Returns:
-            feature_map: (local_size, local_size) numpy数组
-        """
         scale = local_size / global_size
         feature_map = np.zeros((local_size, local_size), dtype=np.float32)
 
@@ -393,8 +382,8 @@ class Build_Feature:
 
         # 防止越界
         x_scaled = min(max(x_scaled, 0), local_size - 1)
-        y_scaled = min(max(y_scaled, 0), local_size - 1)
-        feature_map[x_scaled, y_scaled] = 1.0
+        y_scaled = local_size - 1 - min(max(y_scaled, 0), local_size - 1)
+        feature_map[y_scaled, x_scaled] = 1.0
 
         return feature_map
 
