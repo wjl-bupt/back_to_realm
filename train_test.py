@@ -49,7 +49,7 @@ def train():
             "use_prometheus": "True",
             "aisrv_connect_to_kaiwu_env_count": "2",
             "dump_model_freq": "1",
-            "max_step_no": "1000",
+            "max_step_no": "100",
         }
     )
 

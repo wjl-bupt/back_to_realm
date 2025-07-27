@@ -16,11 +16,14 @@ import math
 # The first parameter of the function is the type name, and the remaining parameters are the attributes of the class.
 # The default value of the attribute should be set to None.
 # create_cls函数用于动态创建一个类，函数第一个参数为类型名称，剩余参数为类的属性，属性默认值应设为None
+
+# 增加一个rew 统计的数据
 ObsData = create_cls(
     "ObsData",
     feature=None,
     legal_action=None,
     reward=None,
+    rew_stat=None,
 )
 
 
@@ -207,7 +210,7 @@ class ComputeReward:
         i_upper = np.triu_indices(10, k=1)
         unique_dists = dists[i_upper]
         avg_dist = np.mean(unique_dists)
-        print(f"weijun.luo print info: avg dist {avg_dist}")
+        # print(f"weijun.luo print info: avg dist {avg_dist}")
         if avg_dist < threshold:
             return -scale * (threshold - avg_dist)
         else:
@@ -267,9 +270,18 @@ class ComputeReward:
         weight = max(0.1, (1000 - step_no ) / 1000)
 
         total_reward = [step_reward + weight * (self.buff_reward + self.treasure_reward) + self.goal_reward + end_reward + self.explore_reward]
-        print(f'weijun.luo total rew is {total_reward}')
+
+        # build dict_
+        rew_ = {
+            "buff_rew": self.buff_reward,
+            "treasure_rew": self.treasure_reward,
+            "goal_rew": self.goal_reward,
+            "end_rew": end_reward,
+            "explore_rew": self.explore_reward,
+        }
         
-        return total_reward 
+        
+        return total_reward, rew_
 
 @attached
 def SampleData2NumpyData(g_data):

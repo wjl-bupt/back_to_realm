@@ -74,12 +74,13 @@ class Agent(BaseAgent):
         return probs, value
 
     def observation_process(self, obs, extra_info=None):
-        feature, legal_action, reward = self.preprocessor.process([obs, extra_info], self.last_action)
+        feature, legal_action, reward, rew_stat = self.preprocessor.process([obs, extra_info], self.last_action)
 
         return ObsData(
             feature=feature,
             legal_action=legal_action,
             reward=reward,
+            rew_stat=rew_stat,
         )
 
     @predict_wrapper

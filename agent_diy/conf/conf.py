@@ -22,7 +22,7 @@ class Config:
 
     # Initial learning rate
     # 初始的学习率
-    START_LR = 0.0005
+    START_LR = 0.0003
 
     # entropy regularization coefficient
     # 熵正则化系数

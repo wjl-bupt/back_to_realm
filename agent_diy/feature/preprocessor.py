@@ -121,18 +121,19 @@ class Preprocessor:
         obs, _ = frame_state
         feature = self.MyFeatureClass.build_feat(obs = obs)
         
-        rew = self.RewCompute.compute_reward(end_dist = self.feature_end_pos[-1], 
-                                             history_dist = self.feature_history_pos[-1],
-                                             organs = obs["frame_state"]["organs"],
-                                             cur_pos = (obs["frame_state"]["heroes"][0]["pos"]["x"], obs["frame_state"]["heroes"][0]["pos"]["z"]),
-                                             history_pos = self.history_pos,
-                                             step_no = obs['frame_state']['step_no']
-                                            )
+        rew, rew_stat = self.RewCompute.compute_reward(end_dist = self.feature_end_pos[-1], 
+                                                        history_dist = self.feature_history_pos[-1],
+                                                        organs = obs["frame_state"]["organs"],
+                                                        cur_pos = (obs["frame_state"]["heroes"][0]["pos"]["x"], obs["frame_state"]["heroes"][0]["pos"]["z"]),
+                                                        history_pos = self.history_pos,
+                                                        step_no = obs['frame_state']['step_no']
+                                                    )
 
         return (
             feature,
             legal_action,
             rew,
+            rew_stat,
             # reward_process(self.feature_end_pos[-1], self.feature_history_pos[-1]),
         )
 
@@ -178,20 +179,8 @@ class Preprocessor:
                 (1, -1),   # Angle_315
             ]
 
-            cur_x, cur_z = hero["pos"]["x"], hero["pos"]["z"]
-            for idx, (dx, dz) in enumerate(directions):
-                valid_target = None
-                for step in range(1, 17):  # 闪现最远16格
-                    tx, tz = cur_x + dx * step, cur_z + dz * step
-                    if not (0 <= tx < 128 and 0 <= tz < 128):
-                        break  # 越界
-                    if self.MyFeatureClass.new_memory[tz][tx] != 0:
-                        valid_target = (tx, tz)  # 找到最近合法点
-                if valid_target is not None:
-                    legal_skill_actions[idx] = True  # 至少方向上存在合法终点
-                else:
-                    legal_skill_actions[idx] = False 
-        
+            cur_x, cur_z = hero["pos"]["x"], 128 - hero["pos"]["z"]
+            
         legal_action = np.concatenate([legal_action, legal_skill_actions])
         
         return legal_action
@@ -230,7 +219,7 @@ class Build_Feature:
         #                        3   2   1
         #                     4      A      0
         #                        5   6   7
-        self.view = np.transpose(np.transpose(np.array([v["values"] for v in obs["map_info"]])))
+        self.view = np.transpose(np.array([v["values"] for v in obs["map_info"]]))
         # 其中0表示不可通行，1表示可以通行，2表示起点位置，3表示终点位置，4表示宝箱位置，6表示加速增益位置。
         self.organs = obs["frame_state"]["organs"]
         
@@ -302,13 +291,13 @@ class Build_Feature:
     def available_buff_feat(self):
         """ buff  """
         buff_feat = np.zeros(shape = self.view.shape)
-        cen_x, cen_y = (buff_feat.shape[0] - 1) // 2, (buff_feat.shape[1] - 1) // 2
+        cen_x, cen_z = (buff_feat.shape[0] - 1) // 2, (buff_feat.shape[1] - 1) // 2
         # dest_feat = (self.view == 3).astype(float)
         for config_id, buff in self.buff.items():
             direction_angle = np.deg2rad(DirectionAngles[RelativeDirection[buff["relative_pos"]["direction"]]])
             l2_dist = RelativeDistance[buff['relative_pos']['l2_distance']]
-            dx, dy = int(l2_dist * np.cos(direction_angle)), int(l2_dist * np.sin(direction_angle))
-            buff_feat[cen_x + dx][cen_y + dy] = 1.0
+            dx, dz = int(l2_dist * np.cos(direction_angle)), int(l2_dist * np.sin(direction_angle))
+            buff_feat[cen_z - dz][cen_x - dx] = 1.0
         
         if np.sum(buff_feat) == 0:
             pass
@@ -320,23 +309,26 @@ class Build_Feature:
     def available_treasure_feat(self):
         """ 生成宝箱的特征图 """
         treasure_feat = np.zeros(shape = self.view.shape)
-        cen_x, cen_y = (treasure_feat.shape[0] - 1) // 2, (treasure_feat.shape[1] - 1) // 2
+        cen_x, cen_z = (treasure_feat.shape[1]) // 2, (treasure_feat.shape[0] - 1) // 2
         
         # 预测宝箱位置
         for config_id, treasure in self.treasures.items():
             status = treasure["status"]
             if status == 0:
                 continue
+            # pos_x, pos_z = treasure['pos']['x'], treasure['pos']['z']
             # 预测宝箱方位
             direction_angle = np.deg2rad(DirectionAngles[RelativeDirection[treasure["relative_pos"]["direction"]]])
             l2_dist = RelativeDistance[treasure['relative_pos']['l2_distance']]
-            dx, dy = int(l2_dist * np.cos(direction_angle)), int(l2_dist * np.sin(direction_angle))
-            treasure_feat[cen_x + dx][cen_y + dy] = 1.0
+            dx, dz = int(l2_dist * np.cos(direction_angle)), int(l2_dist * np.sin(direction_angle))
+            treasure_feat[cen_z - dz][cen_x - dx] += 1.0
         
         
         # 没有探测到宝箱，并且也没有返回相对方位
         if np.sum(treasure_feat) == 0:
             pass
+        
+        treasure_feat = treasure_feat / np.sum(treasure_feat)
         
         return treasure_feat
     
@@ -351,7 +343,7 @@ class Build_Feature:
             direction_angle = np.deg2rad(DirectionAngles[RelativeDirection[dest["relative_pos"]["direction"]]])
             l2_dist = RelativeDistance[dest['relative_pos']['l2_distance']]
             dx, dy = int(l2_dist * np.cos(direction_angle)), int(l2_dist * np.sin(direction_angle))
-            dest_feat[cen_x + dx][cen_y + dy] = 1.0
+            dest_feat[cen_x - dx][cen_y - dy] = 1.0
         
         if np.sum(dest_feat) == 0:
             pass
@@ -416,15 +408,15 @@ class Build_Feature:
     def build_feat(self, obs):
         self.reset()
         self.cat_var(obs)
-        self.local_visit = self.get_local_visit(cen_x = self.hero['pos']['x'], cen_y = self.hero['pos']['z'])
-
+        # self.local_visit = self.get_local_visit(cen_x = self.hero['pos']['x'], cen_y = self.hero['pos']['z'])
+        self.update_dynamic_obstacles()
         pass_feat = np.expand_dims(self.available_pass_feat(), axis = 0)
-        # obstacle_feat = np.expand_dims(self.availble_dynamic_obstacle_feat(), axis = 0)
+        obstacle_feat = np.expand_dims(self.availble_dynamic_obstacle_feat(), axis = 0)
         buff_feat = np.expand_dims(self.available_buff_feat(), axis = 0)
         treasure_feat = np.expand_dims(self.available_treasure_feat(), axis = 0)
         destination_feat = np.expand_dims(self.available_destination_feat(), axis = 0)
         curpos_norm_feat = np.expand_dims(self.global_pos_to_local((self.hero['pos']['x'], self.hero['pos']['z'])), axis = 0)
         
-        total_feat = np.concatenate([pass_feat, buff_feat, treasure_feat, destination_feat, curpos_norm_feat])
+        total_feat = np.concatenate([pass_feat, obstacle_feat, buff_feat, treasure_feat, destination_feat, curpos_norm_feat])
         
         return total_feat

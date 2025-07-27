@@ -93,6 +93,15 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
             diy_3 = 0
             diy_4 = 0
             diy_5 = 0
+            
+            #NOTE(junweiluo)：指标初始化
+            rew_stats = {
+                "buff_rew": [],
+                "treasure_rew": [],
+                "goal_rew": [],
+                "end_rew": [],
+                "explore_rew": [],
+            }
 
             max_step_no = int(os.environ.get("max_step_no", "0"))
             
@@ -103,6 +112,11 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
                 # Feature processing
                 # 特征处理
                 obs_data = agent.observation_process(obs, extra_info)
+                
+                # NOTE(junweiluo)
+                rew_stat = obs_data.rew_stat
+                for attr_, rew_ in rew_stat.items():
+                    rew_stats[attr_].append(rew_)
 
                 # Agent performs inference, gets the predicted action for the next frame
                 # Agent 进行推理, 获取下一帧的预测动作
@@ -164,11 +178,16 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
                 if done:
                     if monitor:
                         monitor_data = {
-                            "win_rate": win_rate,
-                            "episodic_return": episode_return,
+                            "diy_1": win_rate,
+                            "diy_2": episode_return,
                             "diy_3": diy_3,
                             "diy_4": diy_4,
                             "diy_5": diy_5,
+                            "rew_treasure": sum(rew_stats["treasure_rew"]) / len(rew_stats["treasure_rew"]),
+                            "rew_buff": sum(rew_stats["buff_rew"]) / len(rew_stats["buff_rew"]),
+                            "rew_explore": sum(rew_stats["explore_rew"]) / len(rew_stats["explore_rew"]),
+                            "rew_goal": sum(rew_stats["goal_rew"]) / len(rew_stats["goal_rew"]),
+                            "rew_end": sum(rew_stats["end_rew"]) / len(rew_stats["end_rew"]),
                         }
                     collector.process_last_frame(np.array([final_reward]))
                     if len(collector.samples) > 0:
