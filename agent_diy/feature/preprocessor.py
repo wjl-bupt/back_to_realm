@@ -165,21 +165,54 @@ class Preprocessor:
         if hero['talent']['status'] == 0:
             legal_skill_actions = [False] * self.move_action_num
         else:
-            legal_skill_actions = [True] * self.move_action_num
-            # 利用地图判断合法性，如果落点之上全是不可通行区域则禁掉；
-                # 八个方向的单位向量，顺序对应方向枚举
-            directions = [
-                (1, 0),    # Angle_0
-                (1, 1),    # Angle_45
-                (0, 1),    # Angle_90
-                (-1, 1),   # Angle_135
-                (-1, 0),   # Angle_180
-                (-1, -1),  # Angle_225
-                (0, -1),   # Angle_270
-                (1, -1),   # Angle_315
-            ]
+            legal_skill_actions = np.zeros(self.move_action_num, dtype=bool)
 
-            cur_x, cur_z = hero["pos"]["x"], 128 - hero["pos"]["z"]
+            cur_x, cur_z = hero["pos"]["x"], hero["pos"]["z"]
+            x_start, x_end = cur_x - 16, cur_x + 16 + 1
+            z_start, z_end = cur_z - 16 , cur_z + 16 + 1
+
+            # 取出对应的全局地图区域切片
+            skill_submap = self.MyFeatureClass.new_memory[z_start:z_end, x_start:x_end]
+            center = 16
+
+            # 8 个方向 (dx,dz)
+            dirs = np.array([
+            (1,0),(1,1),(0,1),(-1,1),
+            (-1,0),(-1,-1),(0,-1),(1,-1)
+            ], dtype=int)  # shape (8,2)
+
+            # 步长 1..16
+            steps = np.arange(1,17)            # (16,)
+            dxs = dirs[:,0:1] * steps          # (8,16)
+            dzs = dirs[:,1:2] * steps          # (8,16)
+
+            # 子图坐标
+            lxs = center + dxs                 # (8,16)
+            lzs = center + dzs
+
+            # 有效范围
+            valid = (lxs>=0)&(lxs<33)&(lzs>=0)&(lzs<33)
+
+            # 从 sub 中读取可通行标记
+            vals = np.zeros_like(lxs, dtype=int)
+            vals[valid] = skill_submap[lzs[valid], lxs[valid]]  # 1=通, 0=阻
+
+            # 计算加权矩阵：对每个方向和步用 step * weight
+            # pass_mask: (8,16) bool
+            pass_mask = (vals == 1)
+            block_mask = valid & ~pass_mask
+
+            # 扩展 steps 到 (8,16) 方便向量运算
+            step_mat = np.broadcast_to(steps, vals.shape)
+
+            weighted = 0.7  * (step_mat * pass_mask) \
+                    + 0.3 * (step_mat * block_mask)
+            # 对每个方向求和
+            scores = weighted.sum(axis=1)  # (8,)
+
+            # 选 top4 方向合法
+            order = np.argsort(-scores)
+            legal_skill_actions[order[:4]] = True
             
         legal_action = np.concatenate([legal_action, legal_skill_actions])
         

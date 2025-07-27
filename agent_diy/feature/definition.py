@@ -173,7 +173,7 @@ class ComputeReward:
     def __init__(self):
         self.obstacle_reward = 0.0
         self.buff_reward = 0.0
-        self.treasure_reward = 0.0
+        self.treasure_reward = []
         self.explore_reward = 0.0
         self.goal_reward = 0.0
     
@@ -185,13 +185,15 @@ class ComputeReward:
     def compute_obstacle_reward(self):
         return 0.0
 
-    def compute_dist_reward(self, cur_pos, target_pos):
+    def compute_dist_reward(self, cur_pos, target_pos, return_param = "rew"):
         """ buff reward """
         relative_pos = tuple(y - x for x, y in zip(cur_pos, target_pos))
         dist = np.linalg.norm(relative_pos)
         norm_dist = self.norm(dist, 1.41 * 128)
         
-        return max(0, 1.0 - norm_dist)
+        return {"rew": max(0, 1.0 - norm_dist), 
+                "dist": norm_dist 
+            }[return_param]
     
 
     def compute_starting_point_reward(self, cur_pos, starting_pos, step_no):
@@ -235,7 +237,7 @@ class ComputeReward:
     def reset(self):
         self.obstacle_reward = 0.0
         self.buff_reward = 0.0
-        self.treasure_reward = 0.0
+        self.treasure_reward = []
         self.explore_reward = 0.0
         self.goal_reward = 0.0
     
@@ -258,10 +260,15 @@ class ComputeReward:
                 self.goal_reward += min(0.001, 0.05 * history_dist)
             # 宝箱奖励
             else:
-                self.treasure_reward += self.compute_dist_reward(cur_pos, target_pos)
+                self.treasure_reward.append([organ["status"], self.compute_dist_reward(cur_pos, target_pos)])
+        
+        if len(self.treasure_reward) > 0:
+            sorted_norm_dist = sorted(self.treasure_reward, key=lambda x:(x[0], x[1]), reverse = True)
+            self.treasure_reward = sorted_norm_dist[0][1]
+        
         # 步数奖励
         step_reward = -0.001
-        end_reward = 1.0 - end_dist
+        end_reward = - (1.0 - end_dist)
         
         # 探索奖励
         self.explore_reward = self.compute_explore_reward(history_pos)
