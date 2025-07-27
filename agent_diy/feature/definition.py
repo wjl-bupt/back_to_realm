@@ -191,7 +191,7 @@ class ComputeReward:
         dist = np.linalg.norm(relative_pos)
         norm_dist = self.norm(dist, 1.41 * 128)
         
-        return min(0, 1.0 -  norm_dist)
+        return max(0, 1.0 - norm_dist)
     
 
     def compute_starting_point_reward(self, cur_pos, starting_pos, step_no):
@@ -201,7 +201,7 @@ class ComputeReward:
         return 0.0
         
     
-    def compute_explore_reward(self, history_pos, threshold = 1.5, scale = 0.01):
+    def compute_explore_reward(self, history_pos, threshold = 5, scale = 0.01):
         if len(history_pos) != 10:
             return 0.0
         coords = np.array(history_pos)  # (10, 2)
@@ -249,7 +249,7 @@ class ComputeReward:
             target_pos = self.guess_target_pos(organ, cur_pos)
             # buff 距离
             if config_id == 0:
-                self.buff_reward += self.compute_dist_reward(cur_pos, target_pos) 
+                self.buff_reward += self.compute_dist_reward(cur_pos, target_pos) * 0.1 
             # 起点惩罚
             elif config_id == 21:
                 pass
@@ -261,7 +261,7 @@ class ComputeReward:
                 self.treasure_reward += self.compute_dist_reward(cur_pos, target_pos)
         # 步数奖励
         step_reward = -0.001
-        end_reward = -0.02 * end_dist
+        end_reward = 1.0 - end_dist
         
         # 探索奖励
         self.explore_reward = self.compute_explore_reward(history_pos)
@@ -269,7 +269,12 @@ class ComputeReward:
         # 依据时间长度给予奖励
         weight = max(0.1, (1000 - step_no ) / 1000)
 
-        total_reward = [step_reward + weight * (self.buff_reward + self.treasure_reward) + self.goal_reward + end_reward + self.explore_reward]
+        total_reward = [
+            step_reward + 
+            weight * (self.buff_reward + self.treasure_reward + self.explore_reward) + 
+            self.goal_reward + 
+            (1 - weight) * end_reward
+        ]
 
         # build dict_
         rew_ = {
