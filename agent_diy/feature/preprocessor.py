@@ -128,6 +128,7 @@ class Preprocessor:
                                                         history_pos = self.history_pos,
                                                         step_no = obs['frame_state']['step_no']
                                                     )
+        
 
         return (
             feature,
@@ -159,6 +160,13 @@ class Preprocessor:
         if self.move_usable not in legal_action:
             self.bad_move_ids = set()
             # return [self.move_usable] * self.move_action_num
+
+        # 除去bad move，通过当前的局部视野判断智能体还有哪些方向可以走
+        dirs = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
+        view = np.transpose(np.array([v["values"] for v in obs["map_info"]]))
+        cen_x, cen_z = view.shape[1] // 2, view.shape[0] // 2
+        can_move_dirs = [True if view[cen_z+dz][cen_x+dx] == 1 else False for (dx, dz) in dirs]
+        legal_action = (np.array(legal_action) * np.array(can_move_dirs)).tolist()
 
         # SKILL Legal Actions
         hero = obs["frame_state"]["heroes"][0]
