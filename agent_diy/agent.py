@@ -27,6 +27,7 @@ from agent_diy.feature.definition import SampleData, ObsData, ActData, SampleMan
 from agent_diy.feature.preprocessor import Preprocessor
 
 
+
 def random_choice(p):
     r = random.random() * sum(p)
     s = 0

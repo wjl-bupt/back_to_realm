@@ -126,7 +126,7 @@ class SampleManager:
     def update_sample_info(self):
         last_gae = 0
         for i in range(self.count - 1, -1, -1):
-            reward = self.reward[i + 1]
+            reward = self.reward[i]
             next_val = self.value[i + 1]
             val = self.value[i]
             delta = reward + next_val * self.gamma - val
@@ -219,7 +219,7 @@ class ComputeReward:
             return 0.0
 
     def guess_target_pos(self, organ, cur_pos):
-        if organ["status"] != -1:
+        if organ["pos"]["x"] != -1:
             return  (organ["pos"]["x"], organ["pos"]["z"])
         
         target_pos_dis = RelativeDistance[organ["relative_pos"]["l2_distance"]]
@@ -251,7 +251,7 @@ class ComputeReward:
             target_pos = self.guess_target_pos(organ, cur_pos)
             # buff 距离
             if config_id == 0:
-                self.buff_reward += self.compute_dist_reward(cur_pos, target_pos) * 0.1 
+                self.buff_reward += self.compute_dist_reward(cur_pos, target_pos, "dist") * -0.01 
             # 起点惩罚
             elif config_id == 21:
                 pass
@@ -260,25 +260,35 @@ class ComputeReward:
                 self.goal_reward += min(0.001, 0.05 * history_dist)
             # 宝箱奖励
             else:
-                self.treasure_reward.append([organ["status"], self.compute_dist_reward(cur_pos, target_pos)])
+                self.treasure_reward.append([organ["status"], self.compute_dist_reward(cur_pos, target_pos, "dist")])
         
         if len(self.treasure_reward) > 0:
             sorted_norm_dist = sorted(self.treasure_reward, key=lambda x:(x[0], x[1]), reverse = True)
-            self.treasure_reward = sorted_norm_dist[0][1]
+            treasure_count = 0
+            norm_dist = 0
+            for dist in sorted_norm_dist:
+                norm_dist += dist[1]
+                treasure_count += 1
+                if treasure_count >= 3:
+                    break
+            norm_dist /= treasure_count
+            self.treasure_reward = -0.01 * norm_dist
         
         # 步数奖励
         step_reward = -0.001
-        end_reward = - (1.0 - end_dist)
+        end_reward = - 0.02 * end_dist
         
         # 探索奖励
-        self.explore_reward = self.compute_explore_reward(history_pos)
+        self.explore_reward = 0.0
         
         # 依据时间长度给予奖励
         weight = max(0.1, (1000 - step_no ) / 1000)
 
         total_reward = [
             step_reward + 
-            weight * (self.buff_reward + self.treasure_reward + self.explore_reward) + 
+            self.buff_reward + 
+            self.treasure_reward + 
+            self.explore_reward + 
             self.goal_reward + 
             (1 - weight) * end_reward
         ]

@@ -17,13 +17,18 @@ from agent_diy.conf.conf import Config
 from typing import List
 
 
-
+red = "\033[31m"
+green = "\033[32m"
+reset = "\033[0m"
 # class Model(nn.Module):
 #     def __init__(self, state_shape, action_shape=0, softmax=False):
 #         super().__init__()
 
 #         # User-defined network
 #         # 用户自定义网络
+
+
+
 
 class CNNLayer(nn.Module):
     def __init__(self):
@@ -36,6 +41,8 @@ class CNNLayer(nn.Module):
         use_orthogonal = 1 if Config.use_orthogonal else 0
         kernel_size = Config.kernel_size
         stride = Config.stride
+        flatten_shape = compute_cnn_hiddensize()
+        print(f"{red} cnn flatten shape is {flatten_shape} {reset}")
         
         active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
@@ -44,18 +51,24 @@ class CNNLayer(nn.Module):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0), gain=gain)
 
         input_channel = obs_shape[0]
-        input_width = obs_shape[1]
-        input_height = obs_shape[2]
 
         self.cnn = nn.Sequential(
             init_(nn.Conv2d(in_channels=input_channel,
-                            out_channels=hidden_size // 2,
+                            out_channels=Config.channels[0],
                             kernel_size=kernel_size,
                             stride=stride)
                   ),
             active_func,
-            Flatten(),
-            init_(nn.Linear(hidden_size // 2 * (input_width - kernel_size + stride) * (input_height - kernel_size + stride),
+            nn.MaxPool2d(kernel_size = 2, stride = 2),
+            init_(nn.Conv2d(in_channels = Config.channels[0], 
+                            out_channels = Config.channels[1], 
+                            kernel_size = kernel_size, 
+                            stride = stride)
+                ),
+            active_func,
+            nn.MaxPool2d(kernel_size = 2, stride = 2),
+            nn.Flatten(),
+            init_(nn.Linear(flatten_shape,
                             hidden_size)
                   ),
             active_func,
@@ -194,3 +207,21 @@ def make_fc_layer(in_features: int, out_features: int):
     nn.init.zeros_(fc_layer.bias)
 
     return fc_layer
+
+
+def compute_cnn_hiddensize():
+    """"""
+    C, W, H = Config.obs_shape
+    K, S, P = Config.kernel_size, Config.stride, 0
+    for i in range(2):
+        # first conv
+        H = (H + 2*P - K) // S + 1
+        W = (W + 2*P - K) // S + 1
+        # pool layer: default kernel size is 2, stride is 2
+        H = (H + 2*0 - 2) // 2 + 1
+        W = (W + 2*0 - 2) // 2 + 1
+    
+    C = Config.channels[-1]
+    flatten_dim = C * H * W
+    
+    return flatten_dim

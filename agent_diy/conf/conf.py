@@ -72,7 +72,8 @@ class Config:
     use_cnn = True
     # CNN网络参数
     obs_shape = (6, 11, 11)
-    hidden_size = 512
+    hidden_size = 128
+    channels = [16, 64]
     kernel_size = 3
     stride = 1
     use_ReLU = True

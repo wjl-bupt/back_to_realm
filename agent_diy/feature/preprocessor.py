@@ -158,40 +158,71 @@ class Preprocessor:
 
         if self.move_usable not in legal_action:
             self.bad_move_ids = set()
-            return [self.move_usable] * self.move_action_num
+            # return [self.move_usable] * self.move_action_num
 
         # SKILL Legal Actions
         hero = obs["frame_state"]["heroes"][0]
         if hero['talent']['status'] == 0:
-            legal_skill_actions = [False] * self.move_action_num
+            legal_skill_actions = np.zeros(self.move_action_num, dtype=bool)
         else:
             legal_skill_actions = np.zeros(self.move_action_num, dtype=bool)
 
             cur_x, cur_z = hero["pos"]["x"], hero["pos"]["z"]
-            x_start, x_end = cur_x - 16, cur_x + 16 + 1
-            z_start, z_end = cur_z - 16 , cur_z + 16 + 1
+            # 初始化全零矩阵
+            skill_submap = np.zeros((33, 33), dtype=self.MyFeatureClass.new_memory.dtype)
 
-            # 取出对应的全局地图区域切片
-            skill_submap = self.MyFeatureClass.new_memory[z_start:z_end, x_start:x_end]
-            center = 16
+            # 地图大小
+            H, W = self.MyFeatureClass.new_memory.shape
+
+            # 原图中提取的区域范围
+            x_start_src = cur_x - 16
+            x_end_src   = cur_x + 16 + 1
+            z_start_src = cur_z - 16
+            z_end_src   = cur_z + 16 + 1
+
+            # 目标矩阵中要放置的位置
+            x_start_dst = max(0, -x_start_src)
+            z_start_dst = max(0, -z_start_src)
+
+            # 源图中有效提取区域
+            x_start_src_clamped = max(0, x_start_src)
+            x_end_src_clamped   = min(W, x_end_src)
+            z_start_src_clamped = max(0, z_start_src)
+            z_end_src_clamped   = min(H, z_end_src)
+
+            # 对应目标矩阵中要放置的位置结束点
+            x_end_dst = x_start_dst + (x_end_src_clamped - x_start_src_clamped)
+            z_end_dst = z_start_dst + (z_end_src_clamped - z_start_src_clamped)
+
+            # 拷贝有效区域
+            skill_submap[z_start_dst:z_end_dst, x_start_dst:x_end_dst] = \
+                self.MyFeatureClass.new_memory[z_start_src_clamped:z_end_src_clamped,
+                                            x_start_src_clamped:x_end_src_clamped]
 
             # 8 个方向 (dx,dz)
             dirs = np.array([
-            (1,0),(1,1),(0,1),(-1,1),
-            (-1,0),(-1,-1),(0,-1),(1,-1)
-            ], dtype=int)  # shape (8,2)
+                (1, 0),   # →
+                (1, 1),   # ↗
+                (0, 1),   # ↑
+                (-1, 1),  # ↖
+                (-1, 0),  # ←
+                (-1, -1), # ↙
+                (0, -1),  # ↓
+                (1, -1),  # ↘
+            ], dtype=int)
 
             # 步长 1..16
-            steps = np.arange(1,17)            # (16,)
-            dxs = dirs[:,0:1] * steps          # (8,16)
-            dzs = dirs[:,1:2] * steps          # (8,16)
+            steps = np.arange(1, 17)            # (16,)
+            dxs = dirs[:, 0:1] * steps          # (8,16)
+            dzs = dirs[:, 1:2] * steps          # (8,16)
 
             # 子图坐标
+            center = 16
             lxs = center + dxs                 # (8,16)
             lzs = center + dzs
 
             # 有效范围
-            valid = (lxs>=0)&(lxs<33)&(lzs>=0)&(lzs<33)
+            valid = (lxs >= 0) & (lxs < 33) & (lzs >= 0) & (lzs < 33)
 
             # 从 sub 中读取可通行标记
             vals = np.zeros_like(lxs, dtype=int)
@@ -205,7 +236,7 @@ class Preprocessor:
             # 扩展 steps 到 (8,16) 方便向量运算
             step_mat = np.broadcast_to(steps, vals.shape)
 
-            weighted = 0.7  * (step_mat * pass_mask) \
+            weighted = 0.7 * (step_mat * pass_mask) \
                     + 0.3 * (step_mat * block_mask)
             # 对每个方向求和
             scores = weighted.sum(axis=1)  # (8,)
@@ -213,10 +244,13 @@ class Preprocessor:
             # 选 top4 方向合法
             order = np.argsort(-scores)
             legal_skill_actions[order[:4]] = True
-            
-        legal_action = np.concatenate([legal_action, legal_skill_actions])
-        
+
+        legal_action = legal_action + legal_skill_actions.tolist()
+
         return legal_action
+
+        
+
 
 
 class Build_Feature:
