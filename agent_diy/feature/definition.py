@@ -176,6 +176,9 @@ class ComputeReward:
         self.treasure_reward = []
         self.explore_reward = 0.0
         self.goal_reward = 0.0
+        self.buff = None
+        self.treasures = None
+        self.denstination = None
     
     def norm(self, v, max_v, min_v=0):
         v = np.maximum(np.minimum(max_v, v), min_v)
@@ -237,13 +240,92 @@ class ComputeReward:
     def reset(self):
         self.obstacle_reward = 0.0
         self.buff_reward = 0.0
-        self.treasure_reward = []
+        self.treasure_reward = 0.0
         self.explore_reward = 0.0
         self.goal_reward = 0.0
     
+    def compute_buff_reward(self, new_buff_stat):
+        if self.buff == None:
+            return 0.0
+        
+        past_status = self.buff[0]["status"]
+        new_status = new_buff_stat[0]["status"]
+        
+        if new_status == 0 and past_status != 0:
+            return 1.0
+        
+        return 0.0
+
+    def compute_treasure_rewards(self, new_treasures_stat):
+        if self.treasures == None:
+            return 0.0
+        
+        new_treasures_stat_ = sorted(new_treasures_stat, key=lambda x:x["config_id"])
+        if len(self.treasures) != len(new_treasures_stat_):
+            raise RuntimeError(f"num of new treasures != old treasures")
+        
+        total_treasure_reward = 0.0
+        
+        for _, (new_, pass_) in enumerate(zip(new_treasures_stat_, self.treasures)):
+            new_status, old_status = new_["status"], pass_["status"]
+            if new_status == 0 and old_status != 0:
+                total_treasure_reward += 1.0
+        
+        return total_treasure_reward
+            
     def compute_reward(self, end_dist, history_dist, organs, cur_pos, history_pos, step_no):
+        self.reset()
+        
+        new_treasures_stat = []
+        new_buff_stat = []
+        
+        for organ in organs:
+            config_id = organ["config_id"]
+            if config_id == 0:
+                new_buff_stat.append(organ)
+            # 更新终点信息
+            elif config_id == 22:
+                if self.denstination == None:
+                    self.denstination = [organ]
+                else:
+                    self.denstination[0]["status"] = organ["status"]
+                    self.denstination[0]["relative_pos"] = organ["relative_pos"]
+                    if self.denstination[0]["pos"]["x"] == -1:
+                        self.denstination[0]["pos"] = organ["pos"]
+                self.goal_reward = min(0.001, 0.05 * history_dist)
+            elif config_id == 21:
+                pass
+            else:
+                new_treasures_stat.append(organ)
+        
+        self.treasure_reward += self.compute_treasure_rewards(new_treasures_stat)
+        self.treasures = new_treasures_stat
+        self.buff_reward += self.compute_buff_reward(new_buff_stat)
+        self.buff = new_buff_stat
+        
+        # 步数奖励
+        step_reward = -0.001
+        end_reward = - 0.02 * end_dist
+
+        rew_ = {
+            "buff_rew": self.buff_reward,
+            "treasure_rew": self.treasure_reward,
+            "goal_rew": self.goal_reward,
+            "end_rew": end_reward,
+            "explore_rew": self.explore_reward,
+        }
+        
+        return [step_reward + end_reward + self.goal_reward + self.buff_reward + self.treasure_reward], rew_
+        
+        
+    
+    def compute_reward_(self, end_dist, history_dist, organs, cur_pos, history_pos, step_no):
         """ 计算奖励 """
         self.reset()
+        
+        # 计算奖励
+        # buff 奖励
+        
         for organ in organs:
             if organ["status"] == 0:
                 continue
