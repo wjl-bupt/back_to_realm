@@ -44,7 +44,7 @@ class Config:
     # features
     # 特征
     FEATURES = [
-        6 * 11 * 11,
+        2 * 11 * 11,
     ]
 
     FEATURE_SPLIT_SHAPE = FEATURES
@@ -71,9 +71,9 @@ class Config:
 
     use_cnn = True
     # CNN网络参数
-    obs_shape = (6, 11, 11)
+    obs_shape = (2, 11, 11)
     hidden_size = 128
-    channels = [16, 64]
+    channels = [4, 8]
     kernel_size = 3
     stride = 1
     use_ReLU = True

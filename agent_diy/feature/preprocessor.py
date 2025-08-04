@@ -121,24 +121,25 @@ class Preprocessor:
         obs, _ = frame_state
         feature = self.MyFeatureClass.build_feat(obs = obs)
         
-        rew, rew_stat = self.RewCompute.compute_reward(end_dist = self.feature_end_pos[-1], 
-                                                        history_dist = self.feature_history_pos[-1],
-                                                        organs = obs["frame_state"]["organs"],
-                                                        cur_pos = (obs["frame_state"]["heroes"][0]["pos"]["x"], obs["frame_state"]["heroes"][0]["pos"]["z"]),
-                                                        history_pos = self.history_pos,
-                                                        step_no = obs['frame_state']['step_no']
-                                                    )
+        # rew, rew_stat = self.RewCompute.compute_reward(end_dist = self.feature_end_pos[-1], 
+        #                                                 history_dist = self.feature_history_pos[-1],
+        #                                                 organs = obs["frame_state"]["organs"],
+        #                                                 cur_pos = (obs["frame_state"]["heroes"][0]["pos"]["x"], obs["frame_state"]["heroes"][0]["pos"]["z"]),
+        #                                                 history_pos = self.history_pos,
+        #                                                 step_no = obs['frame_state']['step_no']
+        #                                             )
         
 
         return (
             feature,
             legal_action,
-            rew,
-            rew_stat,
-            # reward_process(self.feature_end_pos[-1], self.feature_history_pos[-1]),
+            reward_process(self.feature_end_pos[-1], self.feature_history_pos[-1]),
+            dict(),
         )
 
     def get_legal_action(self, frame_state):
+        
+        return [1 for i in range(16)]
         obs, _ = frame_state
         # MOVING Legal Actions
         # ========= 防止撞墙的逻辑 ============= #
@@ -254,6 +255,7 @@ class Preprocessor:
             legal_skill_actions[order[:4]] = True
 
         legal_action = legal_action + legal_skill_actions.tolist()
+        
 
         return legal_action
 
@@ -486,12 +488,12 @@ class Build_Feature:
         # self.local_visit = self.get_local_visit(cen_x = self.hero['pos']['x'], cen_y = self.hero['pos']['z'])
         self.update_dynamic_obstacles()
         pass_feat = np.expand_dims(self.available_pass_feat(), axis = 0)
-        obstacle_feat = np.expand_dims(self.availble_dynamic_obstacle_feat(), axis = 0)
+        # obstacle_feat = np.expand_dims(self.availble_dynamic_obstacle_feat(), axis = 0)
         buff_feat = np.expand_dims(self.available_buff_feat(), axis = 0)
-        treasure_feat = np.expand_dims(self.available_treasure_feat(), axis = 0)
-        destination_feat = np.expand_dims(self.available_destination_feat(), axis = 0)
-        curpos_norm_feat = np.expand_dims(self.global_pos_to_local((self.hero['pos']['x'], self.hero['pos']['z'])), axis = 0)
+        # treasure_feat = np.expand_dims(self.available_treasure_feat(), axis = 0)
+        # destination_feat = np.expand_dims(self.available_destination_feat(), axis = 0)
+        # curpos_norm_feat = np.expand_dims(self.global_pos_to_local((self.hero['pos']['x'], self.hero['pos']['z'])), axis = 0)
         
-        total_feat = np.concatenate([pass_feat, obstacle_feat, buff_feat, treasure_feat, destination_feat, curpos_norm_feat])
+        total_feat = np.concatenate([pass_feat, buff_feat])
         
         return total_feat

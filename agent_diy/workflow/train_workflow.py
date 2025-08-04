@@ -17,7 +17,7 @@ from agent_diy.feature.definition import (
     SampleManager,
 )
 from tools.metrics_utils import get_training_metrics
-
+from agent_diy.workflow.ruler import Ruler
 
 @attached
 def workflow(envs, agents, logger=None, monitor=None):
@@ -104,16 +104,23 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
             }
 
             max_step_no = int(os.environ.get("max_step_no", "0"))
+            
+            # NOTE(junweiluo)：开始一局新游戏则初始化一次Ruler
+            ruler = Ruler(organs = obs['frame_state']['organs'])
 
             while not done:
+                print(f"step no is {obs['frame_state']['step_no']}")
                 # Feature processing
                 # 特征处理
                 obs_data = agent.observation_process(obs, extra_info)
                 
+                # # NOTE(junweiluo): 
+                # ruler.update_msg(obs = obs)
+                
                 # NOTE(junweiluo)
-                rew_stat = obs_data.rew_stat
-                for attr_, rew_ in rew_stat.items():
-                    rew_stats[attr_].append(rew_)
+                # rew_stat = obs_data.rew_stat
+                # for attr_, rew_ in rew_stat.items():
+                #     rew_stats[attr_].append(rew_)
 
                 # Agent performs inference, gets the predicted action for the next frame
                 # Agent 进行推理, 获取下一帧的预测动作
@@ -125,6 +132,9 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
 
                 # Interact with the environment, execute actions, get the next state
                 # 与环境交互, 执行动作, 获取下一步的状态
+                # use_ruler to interact
+                # NOTE(junweiluo)
+                act = ruler.get_action(obs = obs)
                 step_no, _obs, terminated, truncated, _extra_info = env.step(act)
                 
                 # logger.info(f"weijun.luo loginfo: step_no is {step_no}")
@@ -176,11 +186,11 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
                     if monitor:
                         monitor_data = {
                             "diy_1": win_rate,
-                            "diy_2": sum(rew_stats["treasure_rew"]) / len(rew_stats["treasure_rew"]),
-                            "diy_3": sum(rew_stats["buff_rew"]) / len(rew_stats["buff_rew"]),
+                            "diy_2": 0,
+                            "diy_3": 0,
                             # "diy": sum(rew_stats["explore_rew"]) / len(rew_stats["explore_rew"]),
-                            "diy_4": sum(rew_stats["goal_rew"]) / len(rew_stats["goal_rew"]),
-                            "diy_5": sum(rew_stats["end_rew"]) / len(rew_stats["end_rew"]),
+                            "diy_4": 0,
+                            "diy_5": 0,
                         }
                     collector.process_last_frame(np.array([final_reward]))
                     if len(collector.samples) > 0:
