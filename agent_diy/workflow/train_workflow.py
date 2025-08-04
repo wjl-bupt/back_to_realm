@@ -106,21 +106,14 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
             max_step_no = int(os.environ.get("max_step_no", "0"))
             
             # NOTE(junweiluo)：开始一局新游戏则初始化一次Ruler
-            ruler = Ruler(organs = obs['frame_state']['organs'])
+            ruler = Ruler(logger = logger, step_no = obs['frame_state']['step_no'])
 
             while not done:
-                print(f"step no is {obs['frame_state']['step_no']}")
+                # print(f"step no is {obs['frame_state']['step_no']}")
                 # Feature processing
                 # 特征处理
                 obs_data = agent.observation_process(obs, extra_info)
                 
-                # # NOTE(junweiluo): 
-                # ruler.update_msg(obs = obs)
-                
-                # NOTE(junweiluo)
-                # rew_stat = obs_data.rew_stat
-                # for attr_, rew_ in rew_stat.items():
-                #     rew_stats[attr_].append(rew_)
 
                 # Agent performs inference, gets the predicted action for the next frame
                 # Agent 进行推理, 获取下一帧的预测动作
@@ -134,9 +127,15 @@ def run_episodes(n_episode, env, agent, usr_conf, logger, monitor):
                 # 与环境交互, 执行动作, 获取下一步的状态
                 # use_ruler to interact
                 # NOTE(junweiluo)
-                act = ruler.get_action(obs = obs)
+                local_view = np.array([v["values"] for v in obs["map_info"]])
+                hero_x, hero_z = obs['frame_state']['heroes'][0]['pos']['x'], obs['frame_state']['heroes'][0]['pos']['z']
+                # print(f"hero pos is {obs['frame_state']['heroes'][0]['pos']}")
+                top_left = (hero_x - 5, hero_z - 5)
+                ruler.update_local_view(local_view = local_view, top_left = top_left)
+                act = ruler.run_step(obs = obs)
                 step_no, _obs, terminated, truncated, _extra_info = env.step(act)
                 
+                # print(f"====== current pos is {_obs['frame_state']['heroes'][0]['pos']}, last pos is {obs['frame_state']['heroes'][0]['pos']}, act is {act} =======")
                 # logger.info(f"weijun.luo loginfo: step_no is {step_no}")
                 if _extra_info["result_code"] != 0:
                     logger.warning(
